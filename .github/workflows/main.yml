@@ -45,7 +45,7 @@ jobs:
     - name: 下载内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/fangkuaixiaoqiao/testii -b main android-kernel
+        git clone --depth=1 https://github.com/fangkuaixiaoqiao/testiii -b main android-kernel
         cd android-kernel/kernel/msm-5.4
 
 
@@ -68,7 +68,7 @@ jobs:
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export KBUILD_BUILD_HOST=gmail.com
         export KBUILD_BUILD_USER=fangkuaixiaoqiao
-        make -s -j$(nproc --all) O=out ARCH=arm64 k9s_defconfig
+        make -s -j$(nproc --all) O=out ARCH=arm64 oppok9s_defconfig
         make -j$(nproc --all) CC="ccache clang" O=out ARCH=arm64 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- LD=ld.lld
 
 
