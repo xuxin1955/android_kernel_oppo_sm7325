@@ -45,7 +45,7 @@ jobs:
     - name: 下载内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/fangkuaixiaoqiao/testiii -b main android-kernel
+        git clone --depth=1 https://github.com/fangkuaixiaoqiao/android_kernel_oppo_sm7325 -b oppo/sm7325_u_14.0.0_k9s android-kernel
         cd android-kernel/kernel/msm-5.4
 
 
