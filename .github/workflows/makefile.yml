@@ -56,12 +56,6 @@ jobs:
         max-size: 2G
 
 
-    - name: 格式转化
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        find ./  -exec dos2unix {} \;
-        
- 
     - name: 开始编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/kernel/msm-5.4
@@ -69,7 +63,7 @@ jobs:
         export KBUILD_BUILD_HOST=gmail.com
         export KBUILD_BUILD_USER=fangkuaixiaoqiao
         make -s -j$(nproc --all) O=out ARCH=arm64 oppok9s_defconfig
-        make -j$(nproc --all) CC="ccache clang" O=out ARCH=arm64 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- LD=ld.lld
+        make -j$(nproc --all) CC="ccache clang" O=out ARCH=arm64 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- LD=ld.lld LLVM=1 LLVM_IAS=1
 
 
     - name: 上传编译内核
