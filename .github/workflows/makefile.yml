@@ -38,8 +38,8 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         mkdir clang-aosp
-        wget -O clang-r383902b1.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/e532342f30eadb954c96d19ca6a0edf89a5c65bc/clang-r383902b1.tar.gz
-        tar -C clang-aosp/ -zxvf clang-r383902b1.tar.gz
+        wget -O clang-r383902.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12L-release/clang-r383902.tar.gz
+        tar -C clang-aosp/ -zxvf clang-r383902.tar.gz
     
     
     - name: 下载内核源码
