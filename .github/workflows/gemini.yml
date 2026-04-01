@@ -13,17 +13,17 @@ jobs:
 
     - name: 安装编译必备组件
       run: |
+        sudo dpkg --add-architecture i386
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python2
-        # 32位兼容库，防止老内核编译缺库
-        sudo apt-get install -y libc6:i386 libstdc++6:i386 libncurses5:i386 zlib1g:i386
+        sudo apt-get install -y lib32stdc++6 lib32z1 || echo "Some i386 packages not found, continuing..."
+        sudo apt-get install -y lib32ncurses5 || echo "lib32ncurses5 not found, skipping..."
         mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
     - name: 下载 GCC 4.9 交叉编译链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         mkdir gcc64 gcc32
-        # 使用 AOSP 官方 prebuilt gcc 4.9，稳定可靠
         wget -O gcc-aarch64.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-9.0.0_r47.tar.gz
         tar -C gcc64 -xzf gcc-aarch64.tar.gz
         wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-9.0.0_r47.tar.gz
@@ -37,31 +37,24 @@ jobs:
     - name: 自动修复高版本 GCC 兼容性
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        # 修复 dtc 的 YYLTYPE 重定义
         sed -i 's/YYLTYPE yylloc;/extern YYLTYPE yylloc;/g' scripts/dtc/dtc-lexer.l || true
         sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/g' scripts/dtc/dtc-parser.tab.c_shipped || true
-        # 禁用 -Werror
         sed -i 's/-Werror//g' Makefile || true
 
     - name: 执行内核编译
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        # 设置编译器环境变量
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-android-
         export CROSS_COMPILE_ARM32=arm-linux-androideabi-
-        # 避免不兼容参数
         export HOSTCFLAGS=""
         export KBUILD_HOSTCFLAGS=""
-        # 去掉可能导致报错的 flag
         sed -i 's/-implicit-function-declaration//g' Makefile || true
-        # ccache 加速
         export CCACHE_DIR=$GITHUB_WORKSPACE/.ccache
         mkdir -p $CCACHE_DIR
         ccache -M 2G
         export PATH="/usr/lib/ccache:$PATH"
-        # 编译
         make O=out ARCH=arm64 gemini_defconfig
         make -j$(nproc --all) O=out ARCH=arm64
 
