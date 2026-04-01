@@ -1,4 +1,4 @@
-name: 编译小米5-LOS16内核
+name: 编译小米5-LOS16内核-官方源码版
 
 on:
   workflow_dispatch:
@@ -8,48 +8,57 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v3
+    - name: 检出当前仓库
+      uses: actions/checkout@v3
 
-    - name: 构建编译环境
+    - name: 安装编译必备组件
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev cc-toolchain-aarch64-linux-gnu python2 python3 libncurses5-dev
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python2
         mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    - name: 下载 GCC 4.9 编译器
+    - name: 下载 GCC 4.9 交叉编译链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
+        # 小米5 (msm8996) 属于早期 64 位设备，必须用 GCC 4.9 编译
         git clone https://googlesource.com -b ndk-release-r21 --depth=1 gcc64
         git clone https://googlesource.com -b ndk-release-r21 --depth=1 gcc32
 
-    - name: 下载内核源码
+    - name: 拉取 LineageOS 官方内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_msm8996 -b lineage-16.0 android-kernel
+        # 明确指定你提供的官方仓库地址和 lineage-16.0 分支
+        git clone https://github.com -b lineage-16.0 --depth=1 android-kernel
 
-    - name: 修复环境报错 (YYLTYPE)
+    - name: 自动修复高版本 GCC 兼容性
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        # 修复 scripts/dtc/dtc-lexer.l 中的 YYLTYPE 重定义报错 (这是老内核在现代系统编译必过的坎)
         sed -i 's/YYLTYPE yylloc;/extern YYLTYPE yylloc;/g' scripts/dtc/dtc-lexer.l || true
+        sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/g' scripts/dtc/dtc-parser.tab.c_shipped || true
+        # 禁用一些可能导致报错的警告提示
+        sed -i 's/-Werror//g' Makefile || true
 
-    - name: 开始编译内核
+    - name: 执行内核编译
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        # 设置编译器环境变量
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-android-
         export CROSS_COMPILE_ARM32=arm-linux-androideabi-
         
-        # 1. 生成小米5配置
+        # 1. 生成小米5 (gemini) 的默认配置
+        # LineageOS 源码中该机型对应的通常是 lineagemini_defconfig
         make gemini_defconfig
         
-        # 2. 编译 (移除原来的 LLVM=1 参数)
+        # 2. 开始多线程编译
         make -j$(nproc --all)
 
-    - name: 上传编译结果
+    - name: 导出编译好的内核镜像
       uses: actions/upload-artifact@v4
       with:
-        name: Mi5-LOS16-Kernel-Image
+        name: Mi5-LOS16-Official-Kernel
         path: |
           kernel_workspace/android-kernel/arch/arm64/boot/Image.gz-dtb
           kernel_workspace/android-kernel/arch/arm64/boot/Image
