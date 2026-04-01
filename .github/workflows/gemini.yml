@@ -32,7 +32,7 @@ jobs:
     - name: 拉取 LineageOS 官方内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/LineageOS/android_kernel_xiaomi_msm8996 -b lineage-16.0 --depth=1 android-kernel
+        git clone https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 -b lineage-16.0 --depth=1 android-kernel
 
     - name: 自动修复高版本 GCC 兼容性
       run: |
@@ -65,3 +65,61 @@ jobs:
         path: |
           kernel_workspace/android-kernel/out/arch/arm64/boot/Image.gz-dtb
           kernel_workspace/android-kernel/out/arch/arm64/boot/Image
+
+
+    - name: 拉取 AnyKernel3 并准备打包
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone https://github.com/xuxin1955/AnyKernel3 --depth=1
+        cp android-kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+        # 用我们之前的小米5精简版 anykernel.sh 替换默认脚本
+        cat > AnyKernel3/anykernel.sh << 'EOF'
+### AnyKernel3 Ramdisk Mod Script
+## osm0sis @ xda-developers
+
+### AnyKernel setup
+properties() { '
+kernel.string=Mi5-LOS16-Official-Kernel by YourName
+do.devicecheck=0
+do.modules=0
+do.systemless=1
+do.cleanup=1
+do.cleanuponabort=0
+device.name1=gemini
+device.name2=
+device.name3=
+device.name4=
+device.name5=
+supported.versions=
+supported.patchlevels=
+supported.vendorpatchlevels=
+'; }
+
+### AnyKernel install
+boot_attributes() {
+set_perm_recursive 0 0 755 644 $ramdisk/*;
+set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;
+}
+
+block=auto;
+is_slot_device=auto;
+ramdisk_compression=auto;
+patch_vbmeta_flag=auto;
+
+. tools/ak3-core.sh;
+
+dump_boot;
+write_boot;
+## end boot install
+EOF
+
+    - name: 打包 AnyKernel3 ZIP
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
+        zip -r9 ../Mi5-LOS16-Official-Kernel-AK3.zip . -x "*.git*" "README.md"
+
+    - name: 上传 AnyKernel3 刷机包
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS16-Official-Kernel-AK3
+        path: kernel_workspace/Mi5-LOS16-Official-Kernel-AK3.zip
