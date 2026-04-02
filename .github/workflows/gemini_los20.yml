@@ -1,4 +1,4 @@
-name: 小米5-LOS20-GCC-Only-云编译
+name: 小米5-LOS20-Clang-Only-云编译
 
 on:
   workflow_dispatch:
@@ -27,29 +27,30 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 -b lineage-20 --depth=1 android-kernel
 
-    # 2. 下载 GCC 编译器（aarch64 + arm）
-    - name: 下载 GCC 编译器
+    # 2. 下载 Clang 编译器（archive 直链）
+    - name: 下载 Clang 编译器
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        
-        mkdir gcc64
-        wget -O gcc-aarch64.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-12.1.0_r27.tar.gz
-        tar -C gcc64/ -zxvf gcc-aarch64.tar.gz
-    
-        mkdir gcc32
-        wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-12.1.0_r27.tar.gz
-        tar -C gcc32/ -zxvf gcc-arm.tar.gz
+        mkdir clang-aosp
+        wget -O clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-13.0.0_r13/clang-r450784d.tar.gz
+        tar -C clang-aosp/ -zxvf clang.tar.gz
 
-    # 3. 编译内核（仅 GCC）
+    # 3. 编译内核（仅 Clang）
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/bin:/usr/lib/llvm-*/bin:$PATH
         export ARCH=arm64
+        export CC=clang
+        export CLANG_TRIPLE=aarch64-linux-android-
+        export LD=ld.lld
+        export AR=llvm-ar
+        export NM=llvm-nm
+        export STRIP=llvm-strip
         export CROSS_COMPILE=aarch64-linux-android-
         export CROSS_COMPILE_ARM32=arm-linux-androideabi-
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
-        make -j$(nproc --all) O=out ARCH=arm64
+        make -j$(nproc --all) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-android- LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip
 
     # 4. 导出内核镜像
     - name: 上传内核镜像
