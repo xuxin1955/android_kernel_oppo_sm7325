@@ -50,20 +50,20 @@ jobs:
     - name: 检查 defconfig
       run: ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
 
-    
+  
 
     - name: 缓存 ccache
       id: cache-ccache
       uses: actions/cache@v3
       with:
         path: ~/.ccache
-        key: ccache-kernel-${{ hashFiles('kernel_workspace/gcc-arm64/**') }}-${{ hashFiles('kernel_workspace/gcc-arm/**') }}-${{ hashFiles('kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig') }}
+        key: ccache-kernel-${{ hashFiles('kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig') }}
         restore-keys: ccache-kernel-
 
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
+        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/bin:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
@@ -79,35 +79,6 @@ jobs:
       run: |
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb || echo "Image.gz-dtb 不存在"
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image || echo "Image 不存在"
-
-    - name: 导出内核镜像
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mi5-LOS20
-        path: |
-          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
-          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
-
-    - name: 拉取 AnyKernel3
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
-
-    - name: 拷贝内核
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-
-    - name: 打包刷机包
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
-
-    - name: 上传刷机包
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mi5-LOS20-Kernel-eva-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
 
     - name: 导出内核镜像
       uses: actions/upload-artifact@v4
