@@ -78,10 +78,7 @@ jobs:
         restore-keys: |
           ccache-kernel-
 
-    # 临时移除有问题的 DTB 编译（避免语法错误中断）
-    - name: 跳过有问题的 DTB
-      run: |
-        sed -i '/apq8096-v3-pmi8996-mdm9x55-i2s-mtp\.dtb/d' $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/boot/dts/qcom/Makefile
+
 
     # 检查 gemini_defconfig 是否存在
     - name: 检查 gemini_defconfig 是否存在
