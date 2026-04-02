@@ -1,4 +1,4 @@
-name: 小米5-LOS20-GCC自定义工具链编译
+name: 小米5-LOS20-kdrag0n-GCC编译
 
 on:
   workflow_dispatch:
@@ -23,32 +23,40 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 拉取你提供的 64位 GCC
-    - name: 拉取 mvaisakh gcc-arm64
+    # 拉取 kdrag0n 的 aarch64-elf-gcc（64位）
+    - name: 拉取 kdrag0n aarch64-elf-gcc
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/mvaisakh/gcc-arm64.git gcc64
+        git clone --depth=1 https://github.com/kdrag0n/aarch64-elf-gcc.git gcc64
 
-    # 拉取你提供的 32位 GCC
-    - name: 拉取 mvaisakh gcc-arm
+    # 拉取 kdrag0n 的 arm-eabi-gcc（32位）
+    - name: 拉取 kdrag0n arm-eabi-gcc
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/mvaisakh/gcc-arm.git gcc32
+        git clone --depth=1 https://github.com/kdrag0n/arm-eabi-gcc.git gcc32
+
+    # 检查编译器是否能运行（防止 GLIBC 版本问题）
+    - name: 检查 aarch64-elf-gcc 版本
+      run: |
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$PATH
+        aarch64-elf-gcc --version
+
+    - name: 检查 arm-eabi-gcc 版本
+      run: |
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        arm-eabi-gcc --version
 
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 全 GCC 编译（使用你指定的工具链，前缀 aarch64-elf- 和 arm-eabi-）
+    # 全 GCC 编译（kdrag0n 工具链）
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        # 添加自定义工具链到 PATH
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export ARCH=arm64
-        
-        # 已确认的前缀
         export CROSS_COMPILE=aarch64-elf-
         export CROSS_COMPILE_ARM32=arm-eabi-
         
@@ -74,10 +82,10 @@ jobs:
     - name: 打包刷机包
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r9 ../Mi5-LOS20-Kernel-Custom-GCC.zip . -x "*.git*" "README.md"
+        zip -r9 ../Mi5-LOS20-Kernel-kdrag0n-GCC.zip . -x "*.git*" "README.md"
 
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
-        name: Mi5-LOS20-Kernel-Custom-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-Custom-GCC.zip
+        name: Mi5-LOS20-Kernel-kdrag0n-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
