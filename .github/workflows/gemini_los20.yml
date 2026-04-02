@@ -1,93 +1,101 @@
-name: 小米5-LOS20-ZyC-Clang15-纯编译
+name: 小米5-LOS20-官方工具链编译
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
     - name: 检出代码
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
-    - name: 安装依赖
+    - name: 安装编译依赖
       run: |
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
           lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
           libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 \
           llvm lld llvm-dev libtinfo5 libncurses5
-        mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 1. 拉取内核源码
-    - name: 拉取内核
+    - name: 创建工作目录
+      run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
+
+    # 1. 拉取 LineageOS 官方 Clang (clang-r416183b)
+    - name: 拉取 LineageOS Clang
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 -b lineage-20 --depth=1 android-kernel
+        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b.git clang
 
-    # 2. 下载 ZyC Clang 15.0.7
-    - name: 下载 ZyC Clang 15.0.7
+    # 2. 拉取 LineageOS 官方 GCC 64位
+    - name: 拉取 LineageOS GCC 64位
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        mkdir zyc-clang
-        wget -O clang-15.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260208-release/Clang-15.0.7-20260208.tar.gz
-        tar -xzf clang-15.tar.gz -C zyc-clang --strip-components=1
+        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 gcc64
 
-    # 3. 编译内核（纯 Clang 15）
+    # 3. 拉取 LineageOS 官方 GCC 32位
+    - name: 拉取 LineageOS GCC 32位
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9 gcc32
+
+    # 4. 拉取内核源码 (xuxin1955 的 lineage-20 分支)
+    - name: 拉取内核源码
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
+
+    # 5. 设置环境并编译内核
     - name: 编译内核
       run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/zyc-clang/bin:/usr/lib/llvm-*/bin:$PATH
+        cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export ARCH=arm64
-        export CC=clang
-        export CLANG_TRIPLE=aarch64-linux-android-
-        export LD=ld.lld
-        export AR=llvm-ar
-        export NM=llvm-nm
-        export STRIP=llvm-strip
-        export CROSS_COMPILE=aarch64-linux-android-
-        export CROSS_COMPILE_ARM32=
+        # LOS20 小米5 官方 defconfig
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
-        make -j$(nproc --all) O=out ARCH=arm64 \
+        # 全速编译
+        make -j$(nproc) O=out ARCH=arm64 \
           CC=clang \
           CLANG_TRIPLE=aarch64-linux-android- \
+          CROSS_COMPILE=aarch64-linux-android- \
+          CROSS_COMPILE_ARM32=arm-linux-androideabi- \
           LD=ld.lld \
           AR=llvm-ar \
           NM=llvm-nm \
+          OBJCOPY=llvm-objcopy \
+          OBJDUMP=llvm-objdump \
           STRIP=llvm-strip \
-          LLVM_IAS=1 \
-          CROSS_COMPILE_ARM32=
+          LLVM=1 \
+          LLVM_IAS=1
 
-    # 4. 导出内核镜像
-    - name: 上传内核镜像
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mi5-Kernel-Image
-        path: kernel_workspace/android-kernel/out/arch/arm64/boot/Image.gz-dtb
+    # 6. 检查内核镜像
+    - name: 检查内核镜像
+      run: |
+        ls -lh $GITHUB_WORKSPACE/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
 
-    # 5. 拉取 AnyKernel3
+    # 7. 拉取 AnyKernel3
     - name: 拉取 AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/xuxin1955/AnyKernel3 --depth=1
+        git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
 
-    # 6. 拷贝内核到 AK3
+    # 8. 拷贝内核到 AnyKernel3
     - name: 拷贝内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        cp android-kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
 
-    # 7. 打包刷机包
-    - name: 打包 AK3
+    # 9. 打包刷机包
+    - name: 打包刷机包
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
         zip -r9 ../Mi5-LOS20-Kernel.zip . -x "*.git*" "README.md"
 
-    # 8. 上传刷机包
+    # 10. 上传刷机包
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
-        name: Mi5-LOS20-Kernel-Zip
+        name: Mi5-LOS20-Kernel
         path: kernel_workspace/Mi5-LOS20-Kernel.zip
