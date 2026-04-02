@@ -1,4 +1,4 @@
-name: 编译小米5-LOS20纯净内核（修复GCC版本）
+name: 编译小米5-LOS20(Android13)纯净内核
 
 on:
   workflow_dispatch:
@@ -21,23 +21,20 @@ jobs:
         sudo apt-get install -y lib32stdc++6 lib32z1 || echo "Some i386 packages not found, continuing..."
         mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 拉取内核源码（lineage-20 分支）
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 -b lineage-20 --depth=1 android-kernel
 
-    # 下载 GCC 7.5 交叉编译链（满足 >=5.1 要求，兼容 4.4 内核）
-    - name: 下载 GCC 7.5 交叉编译链
+    - name: 下载 Android 13 GCC 10 交叉编译链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         mkdir gcc64 gcc32
-        wget -O gcc-aarch64.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-7.5/+archive/refs/tags/android-10.0.0_r47.tar.gz
+        wget -O gcc-aarch64.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-10/+archive/refs/tags/android-13.0.0_r40.tar.gz
         tar -C gcc64 -xzf gcc-aarch64.tar.gz
-        wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-7.5/+archive/refs/tags/android-10.0.0_r47.tar.gz
+        wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-10/+archive/refs/tags/android-13.0.0_r40.tar.gz
         tar -C gcc32 -xzf gcc-arm.tar.gz
 
-    # 编译内核（使用 vendor/xiaomi/mi8996_defconfig）
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
@@ -45,11 +42,9 @@ jobs:
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-android-
         export CROSS_COMPILE_ARM32=arm-linux-androideabi-
-        # 使用正确的 defconfig（LOS20 的小米5配置）
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
         make -j$(nproc --all) O=out ARCH=arm64
 
-    # 导出内核镜像
     - name: 导出内核镜像
       uses: actions/upload-artifact@v4
       with:
@@ -58,25 +53,21 @@ jobs:
           kernel_workspace/android-kernel/out/arch/arm64/boot/Image.gz-dtb
           kernel_workspace/android-kernel/out/arch/arm64/boot/Image
 
-    # 拉取 AnyKernel3
     - name: 拉取 AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone https://github.com/xuxin1955/AnyKernel3 --depth=1
 
-    # 拷贝内核到 AnyKernel3
     - name: 拷贝内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         cp android-kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
 
-    # 打包 AnyKernel3 ZIP
     - name: 打包刷机包
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
         zip -r9 ../Mi5-LOS20-Kernel-AK3.zip . -x "*.git*" "README.md"
 
-    # 上传刷机包
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
