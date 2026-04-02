@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    
 
     steps:
     - name: 检出代码
@@ -47,28 +47,26 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 5. 设置环境并编译内核
+    # 5. 编译内核（已修正 CLANG_TRIPLE 错误，所有参数写在一行）
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export ARCH=arm64
-        # LOS20 小米5 官方 defconfig
+        export CC=clang
+        export CLANG_TRIPLE=aarch64-linux-android-
+        export CROSS_COMPILE=aarch64-linux-android-
+        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        export LD=ld.lld
+        export AR=llvm-ar
+        export NM=llvm-nm
+        export STRIP=llvm-strip
+        
+        # 生成 LOS20 小米5 官方 defconfig
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
-        # 全速编译
-        make -j$(nproc) O=out ARCH=arm64 \
-          CC=clang \
-          CLANG_TRIPLE=aarch64-linux-android- \
-          CROSS_COMPILE=aarch64-linux-android- \
-          CROSS_COMPILE_ARM32=arm-linux-androideabi- \
-          LD=ld.lld \
-          AR=llvm-ar \
-          NM=llvm-nm \
-          OBJCOPY=llvm-objcopy \
-          OBJDUMP=llvm-objdump \
-          STRIP=llvm-strip \
-          LLVM=1 \
-          LLVM_IAS=1
+        
+        # 编译（所有参数写在一行，避免换行符解析问题）
+        make -j$(nproc) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-android- CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump LLVM=1 LLVM_IAS=1
 
     # 6. 检查内核镜像
     - name: 检查内核镜像
