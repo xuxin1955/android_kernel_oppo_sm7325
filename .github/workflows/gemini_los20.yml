@@ -1,4 +1,4 @@
-name: 小米5-LOS20-Clang-r450784d-云编译
+name: 小米5-LOS20-Clang-r450784d-谷歌源-云编译
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 60   # 防止卡死超时
 
     steps:
     - name: 检出代码
@@ -26,13 +27,14 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 -b lineage-20 --depth=1 android-kernel
 
-    # 2. 克隆 Clang r450784d（Google Source）
+    # 2. 克隆 Clang r450784d（谷歌源，浅克隆优化，防卡死）
     - name: 克隆 Clang r450784d
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-src
+        git clone --depth=1 --single-branch https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-src
         cd clang-src
-        git checkout refs/tags/android-13.0.0_r13
+        git fetch origin refs/tags/android-13.0.0_r13 --depth=1
+        git checkout FETCH_HEAD
         mv clang-r450784d ../clang
 
     # 3. 编译内核（纯 Clang + LLD）
