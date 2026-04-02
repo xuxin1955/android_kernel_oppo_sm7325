@@ -27,18 +27,35 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 每次重新 clone 工具链
-    - name: 拉取 kdrag0n aarch64-elf-gcc
+    # 缓存 gcc64 工具链
+    - name: 缓存/恢复 gcc64
+      id: cache-gcc64
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/kernel_workspace/gcc64
+        key: gcc64-kdrag0n-aarch64-elf-gcc
+
+    - name: 拉取 kdrag0n aarch64-elf-gcc（若缓存未命中）
+      if: steps.cache-gcc64.outputs.cache-hit != 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/aarch64-elf-gcc.git gcc64
 
-    - name: 拉取 kdrag0n arm-eabi-gcc
+    # 缓存 gcc32 工具链
+    - name: 缓存/恢复 gcc32
+      id: cache-gcc32
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/kernel_workspace/gcc32
+        key: gcc32-kdrag0n-arm-eabi-gcc
+
+    - name: 拉取 kdrag0n arm-eabi-gcc（若缓存未命中）
+      if: steps.cache-gcc32.outputs.cache-hit != 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/arm-eabi-gcc.git gcc32
 
-    # 每次重新 clone 内核源码
+    # 不缓存内核源码，每次重新 clone 保证配置和 DTS 最新
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
