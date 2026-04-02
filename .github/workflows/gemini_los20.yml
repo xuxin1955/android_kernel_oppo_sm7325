@@ -22,48 +22,25 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    - name: 清理旧工具链
-      run: |
-        rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc64
-        rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc32
-
     - name: 下载 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         curl -L -o eva-gcc-arm64-31122025.xz https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz --retry 5 --retry-delay 10 --fail
 
-    - name: 解压并验证工具链目录结构
+    - name: 解压 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         tar -xf eva-gcc-arm64-31122025.xz
-        mkdir -p gcc64
-        if [ -f "gcc-arm64/bin/aarch64-elf-gcc" ]; then
-          mv gcc-arm64 gcc64
-        else
-          echo "错误：未找到 gcc-arm64/bin/aarch64-elf-gcc"
-          ls -la gcc-arm64/bin/
-          exit 1
-        fi
-        ls -l gcc64/bin
 
     - name: 下载 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         curl -L -o eva-gcc-arm-31122025.xz https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz --retry 5 --retry-delay 10 --fail
 
-    - name: 解压并验证 arm 工具链
+    - name: 解压 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         tar -xf eva-gcc-arm-31122025.xz
-        mkdir -p gcc32
-        if [ -f "gcc-arm/bin/arm-eabi-gcc" ]; then
-          mv gcc-arm gcc32
-        else
-          echo "错误：无法识别 arm 工具链结构"
-          ls -la gcc-arm/bin/
-          exit 1
-        fi
-        ls -l gcc32/bin
 
     - name: 拉取内核源码
       run: |
@@ -75,9 +52,9 @@ jobs:
 
     - name: 检查工具链版本
       run: |
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$PATH
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$PATH
         aarch64-elf-gcc --version
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
         arm-eabi-gcc --version
 
     - name: 缓存 ccache
@@ -85,13 +62,13 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.ccache
-        key: ccache-kernel-${{ hashFiles('kernel_workspace/gcc64/**') }}-${{ hashFiles('kernel_workspace/gcc32/**') }}-${{ hashFiles('kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig') }}
+        key: ccache-kernel-${{ hashFiles('kernel_workspace/gcc-arm64/**') }}-${{ hashFiles('kernel_workspace/gcc-arm/**') }}-${{ hashFiles('kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig') }}
         restore-keys: ccache-kernel-
 
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
@@ -107,6 +84,35 @@ jobs:
       run: |
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb || echo "Image.gz-dtb 不存在"
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image || echo "Image 不存在"
+
+    - name: 导出内核镜像
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS20
+        path: |
+          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
+          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
+
+    - name: 拉取 AnyKernel3
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
+
+    - name: 拷贝内核
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+
+    - name: 打包刷机包
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
+        zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
+
+    - name: 上传刷机包
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS20-Kernel-eva-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
 
     - name: 导出内核镜像
       uses: actions/upload-artifact@v4
