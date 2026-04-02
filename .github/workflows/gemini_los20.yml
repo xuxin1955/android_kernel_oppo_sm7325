@@ -13,10 +13,7 @@ jobs:
     - name: 安装依赖
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
-          lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
-          libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 \
-          python-is-python3
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python-is-python3
         mkdir -p ~/.ccache
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         echo "compression = true" >> ~/.ccache/ccache.conf
@@ -30,54 +27,29 @@ jobs:
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc64
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc32
 
-    # ========== ARM64 工具链 ==========
     - name: 下载 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        curl -L -o eva-gcc-arm64-31122025.xz \
-          https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz \
-          --retry 5 --retry-delay 10 --fail
+        curl -L -o eva-gcc-arm64-31122025.xz https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz --retry 5 --retry-delay 10 --fail
 
     - name: 解压并验证工具链目录结构
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        echo "开始解压 eva-gcc-arm64-31122025.xz ..."
         tar -xf eva-gcc-arm64-31122025.xz
-
-        echo "===================================="
-        echo "🔍 gcc-arm64 目录下的内容："
-        ls -la gcc-arm64/
-
-        echo "===================================="
-        echo "🔍 查找是否存在 bin/aarch64-elf-gcc："
-        find gcc-arm64/bin -name "aarch64-elf-gcc"
-
-        echo "===================================="
-        echo "🛠️ 开始自动处理工具链目录..."
-
         mkdir -p gcc64
-
-        # 关键：判断工具链根目录是 gcc-arm64（有 bin/aarch64-elf-gcc）
         if [ -f "gcc-arm64/bin/aarch64-elf-gcc" ]; then
-          echo "✅ 检测到工具链根目录结构，直接移动 gcc-arm64 -> gcc64"
           mv gcc-arm64 gcc64
         else
-          echo "❌ 错误：未找到 gcc-arm64/bin/aarch64-elf-gcc，请检查压缩包内容！"
+          echo "错误：未找到 gcc-arm64/bin/aarch64-elf-gcc"
           ls -la gcc-arm64/bin/
           exit 1
         fi
-
-        echo "===================================="
-        echo "🔧 最终工具链路径：gcc64/bin/"
         ls -l gcc64/bin
 
-    # ========== ARM 工具链 ==========
     - name: 下载 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        curl -L -o eva-gcc-arm-31122025.xz \
-          https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz \
-          --retry 5 --retry-delay 10 --fail
+        curl -L -o eva-gcc-arm-31122025.xz https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz --retry 5 --retry-delay 10 --fail
 
     - name: 解压并验证 arm 工具链
       run: |
@@ -87,7 +59,7 @@ jobs:
         if [ -f "gcc-arm/bin/arm-eabi-gcc" ]; then
           mv gcc-arm gcc32
         else
-          echo "❌ 无法识别 arm 工具链结构"
+          echo "错误：无法识别 arm 工具链结构"
           ls -la gcc-arm/bin/
           exit 1
         fi
@@ -142,4 +114,25 @@ jobs:
         name: Mi5-LOS20
         path: |
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
-          ${{ github.wo
+          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
+
+    - name: 拉取 AnyKernel3
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
+
+    - name: 拷贝内核
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+
+    - name: 打包刷机包
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
+        zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
+
+    - name: 上传刷机包
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS20-Kernel-eva-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
