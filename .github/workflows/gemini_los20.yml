@@ -23,7 +23,7 @@ jobs:
     - name: 下载 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        curl -L -o aarch64-linux-android-4.9.tar.gz "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android-arm64-deadpool-4.9-android13-tv.tar.gz" --retry 5 --retry-delay 10 --fail
+        curl -L -o aarch64-linux-android-4.9.tar.gz "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android-arm64-deadpool-4.9-android13-tv.tar.gz?format=tar.gz" --retry 5 --retry-delay 10 --fail
 
     - name: 解压 arm64 工具链
       run: |
@@ -35,7 +35,7 @@ jobs:
     - name: 下载 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        curl -L -o arm-linux-androideabi-4.9.tar.gz "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android-msm-barbet-4.19-android12-qpr3.tar.gz" --retry 5 --retry-delay 10 --fail
+        curl -L -o arm-linux-androideabi-4.9.tar.gz "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android-msm-barbet-4.19-android12-qpr3.tar.gz?format=tar.gz" --retry 5 --retry-delay 10 --fail
 
     - name: 解压 arm 工具链
       run: |
@@ -63,7 +63,7 @@ jobs:
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc64:$GITHUB_WORKSPACE/kernel_workspace/gcc32:$PATH
+        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-android-
@@ -107,9 +107,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20-Kernel-eva-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mi5-LOS20-Kernel-eva-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
         path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
