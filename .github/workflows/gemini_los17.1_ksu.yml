@@ -1,0 +1,128 @@
+name: 编译小米5-LOS17.1-3.18内核-KernelSU-v0.7.6
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: 检出当前仓库
+      uses: actions/checkout@v3
+
+    - name: 安装编译必备组件
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf \
+          lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
+          libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python2
+        sudo apt-get install -y lib32stdc++6 lib32z1 || echo "Some i386 packages not found, continuing..."
+        sudo apt-get install -y lib32ncurses5 || echo "lib32ncurses5 not found, skipping..."
+        mkdir -p $GITHUB_WORKSPACE/kernel_workspace
+
+    - name: 下载 GCC 4.9 交叉编译链
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        mkdir gcc64 gcc32
+        wget -O gcc-aarch64.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-9.0.0_r47.tar.gz
+        tar -C gcc64 -xzf gcc-aarch64.tar.gz
+        wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-9.0.0_r47.tar.gz
+        tar -C gcc32 -xzf gcc-arm.tar.gz
+
+    - name: 拉取内核源码 (LOS17.1 3.18)
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 -b lineage-17.1 --depth=1 android-kernel
+
+    # === 放入 KernelSU v0.7.6 源码（最后一个兼容 3.18 的较新版） ===
+    - name: 下载 KernelSU v0.7.6 源码
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        git clone https://github.com/tiann/KernelSU -b v0.7.6 --depth=1 kernel/ksu
+
+    - name: 将 KernelSU 源码加入编译
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        echo 'obj-y += ksu/' >> drivers/Makefile
+
+    # === 手动挂钩 KernelSU 到 3.18 内核 ===
+    - name: 添加 extern 声明到 fs/exec.c
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        sed -i '1i /* KernelSU */\nextern int ksu_handle_execve(struct linux_binprm *bprm);' fs/exec.c
+
+    - name: 挂钩 ksu_handle_execve 到 fs/exec.c
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        sed -i '/retval = search_binary_handler(bprm);/i \    ksu_handle_execve(bprm);' fs/exec.c
+
+    - name: 添加 extern 声明到 fs/read_write.c
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        sed -i '1i /* KernelSU */\nextern int ksu_handle_vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos);' fs/read_write.c
+
+    - name: 挂钩 ksu_handle_vfs_read 到 fs/read_write.c
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        sed -i '/.*ret = .*copy_to_user.*/a \    if (ret > 0) ksu_handle_vfs_read(file, buf, ret, pos);' fs/read_write.c
+
+    # === 配置关闭 KPROBES 并开启 KSU ===
+    - name: 修改 defconfig
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        sed -i 's/CONFIG_KPROBES=y/# CONFIG_KPROBES is not set/' arch/arm64/configs/gemini_defconfig
+        grep -q "CONFIG_KSU=y" arch/arm64/configs/gemini_defconfig || echo "CONFIG_KSU=y" >> arch/arm64/configs/gemini_defconfig
+
+    # === 修复兼容 ===
+    - name: 自动修复高版本 GCC 兼容性
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        sed -i 's/YYLTYPE yylloc;/extern YYLTYPE yylloc;/g' scripts/dtc/dtc-lexer.l || true
+        sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/g' scripts/dtc/dtc-parser.tab.c_shipped || true
+        sed -i 's/-Werror//g' Makefile || true
+
+    # === 编译 ===
+    - name: 执行内核编译
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        export ARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-android-
+        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        export HOSTCFLAGS=""
+        export KBUILD_HOSTCFLAGS=""
+        sed -i 's/-implicit-function-declaration//g' Makefile || true
+        export CCACHE_DIR=$GITHUB_WORKSPACE/.ccache
+        mkdir -p $CCACHE_DIR
+        ccache -M 2G
+        export PATH="/usr/lib/ccache:$PATH"
+        make O=out ARCH=arm64 gemini_defconfig
+        make -j$(nproc --all) O=out ARCH=arm64
+
+    # === 导出产物 ===
+    - name: 导出内核镜像
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS17.1-3.18-KernelSU-v0.7.6-Kernel
+        path: |
+          kernel_workspace/android-kernel/out/arch/arm64/boot/Image.gz-dtb
+          kernel_workspace/android-kernel/out/arch/arm64/boot/Image
+
+    - name: 拉取 AnyKernel3 并拷贝内核
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone https://github.com/xuxin1955/AnyKernel3 --depth=1
+        cp android-kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+
+    - name: 打包 AnyKernel3 ZIP
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
+        zip -r9 ../Mi5-LOS17.1-3.18-KernelSU-v0.7.6-AK3.zip . -x "*.git*" "README.md"
+
+    - name: 上传 AnyKernel3 刷机包
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS17.1-3.18-KernelSU-v0.7.6-AK3
+        path: kernel_workspace/Mi5-LOS17.1-3.18-KernelSU-v0.7.6-AK3.zip
