@@ -1,4 +1,4 @@
-name: 小米5-LOS20-kdrag0n-GCC编译(全套gemini_defconfig)
+name: 小米5-LOS20-kdrag0n-GCC编译(无缓存版)
 
 on:
   workflow_dispatch:
@@ -27,58 +27,28 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 缓存 gcc64 工具链
-    - name: 缓存/恢复 gcc64
-      id: cache-gcc64
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/kernel_workspace/gcc64
-        key: gcc64-kdrag0n-aarch64-elf-gcc
-
-    - name: 拉取 kdrag0n aarch64-elf-gcc（若缓存未命中）
-      if: steps.cache-gcc64.outputs.cache-hit != 'true'
+    # 拉取 kdrag0n aarch64-elf-gcc（每次都重新 clone）
+    - name: 拉取 kdrag0n aarch64-elf-gcc
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/aarch64-elf-gcc.git gcc64
 
-    # 缓存 gcc32 工具链
-    - name: 缓存/恢复 gcc32
-      id: cache-gcc32
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/kernel_workspace/gcc32
-        key: gcc32-kdrag0n-arm-eabi-gcc
-
-    - name: 拉取 kdrag0n arm-eabi-gcc（若缓存未命中）
-      if: steps.cache-gcc32.outputs.cache-hit != 'true'
+    # 拉取 kdrag0n arm-eabi-gcc（每次都重新 clone）
+    - name: 拉取 kdrag0n arm-eabi-gcc
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/arm-eabi-gcc.git gcc32
 
-    # 缓存内核源码
-    - name: 缓存/恢复内核源码
-      id: cache-kernel
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/kernel_workspace/kernel-source
-        key: kernel-source-lineage-20
-
-    - name: 拉取内核源码（若缓存未命中）
-      if: steps.cache-kernel.outputs.cache-hit != 'true'
+    # 拉取内核源码（每次都重新 clone）
+    - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 缓存 ccache 目录
-    - name: 缓存 ccache
-      uses: actions/cache@v3
-      with:
-        path: ~/ccache
-        key: ccache-kernel-${{ github.run_id }}
-        restore-keys: |
-          ccache-kernel-
-
-
+    # 临时移除有问题的 DTB 编译（避免语法错误中断）
+    - name: 跳过有问题的 DTB
+      run: |
+        sed -i '/apq8096-v3-pmi8996-mdm9x55-i2s-mtp\.dtb/d' $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/boot/dts/qcom/Makefile
 
     # 检查 gemini_defconfig 是否存在
     - name: 检查 gemini_defconfig 是否存在
