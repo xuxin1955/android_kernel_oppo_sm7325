@@ -8,10 +8,9 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: 安装编译依赖
+    - name: 安装依赖
       run: |
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
@@ -31,77 +30,57 @@ jobs:
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc64
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc32
 
-    # ======================
-    # 下载并解压 ARM64 工具链：eva-gcc-arm64-31122025.xz
-    # 解压后结构：gcc-arm64/aarch64-elf/
-    # ======================
-    - name: 下载并解压 eva-gcc-arm64
+    - name: 下载并解压 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz
+        curl -L -o eva-gcc-arm64-31122025.xz \
+          https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz \
+          --retry 5 --retry-delay 10 --fail
+        file eva-gcc-arm64-31122025.xz
+        ls -lh eva-gcc-arm64-31122025.xz
         tar -xf eva-gcc-arm64-31122025.xz
-
-        # 确认解压出来的目录是 gcc-arm64/aarch64-elf/
+        ls -l
         mkdir -p gcc64
         mv gcc-arm64/aarch64-elf gcc64
-
-        # 检查工具链 bin 目录内容
         ls -l gcc64/bin
 
-    # ======================
-    # 下载并解压 ARM 32-bit 工具链：eva-gcc-arm-31122025.xz
-    # 解压后结构：gcc-arm/arm-eabi/
-    # ======================
-    - name: 下载并解压 eva-gcc-arm
+    - name: 下载并解压 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
+        curl -L -o eva-gcc-arm-31122025.xz \
+          https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz \
+          --retry 5 --retry-delay 10 --fail
+        file eva-gcc-arm-31122025.xz
+        ls -lh eva-gcc-arm-31122025.xz
         tar -xf eva-gcc-arm-31122025.xz
-
-        # 确认解压出来的目录是 gcc-arm/arm-eabi/
+        ls -l
         mkdir -p gcc32
         mv gcc-arm/arm-eabi gcc32
-
-        # 检查工具链 bin 目录内容
         ls -l gcc32/bin
 
-    # ======================
-    # 拉取内核源码：LineageOS 20 for Xiaomi5 (msm8996)
-    # ======================
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    - name: 检查 defconfig 文件
-      run: |
-        ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
+    - name: 检查 defconfig
+      run: ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
 
-    - name: 检查 ARM64 工具链版本
+    - name: 检查工具链版本
       run: |
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$PATH
         aarch64-elf-gcc --version
-
-    - name: 检查 ARM 32-bit 工具链版本
-      run: |
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         arm-eabi-gcc --version
 
-    # ======================
-    # 设置 ccache 缓存加速（可选但推荐）
-    # ======================
     - name: 缓存 ccache
       id: cache-ccache
       uses: actions/cache@v3
       with:
         path: ~/.ccache
         key: ccache-kernel-${{ hashFiles('kernel_workspace/gcc64/**') }}-${{ hashFiles('kernel_workspace/gcc32/**') }}-${{ hashFiles('kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig') }}
-        restore-keys: |
-          ccache-kernel-
+        restore-keys: ccache-kernel-
 
-    # ======================
-    # 编译内核
-    # ======================
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
@@ -110,44 +89,43 @@ jobs:
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
         export CROSS_COMPILE_ARM32=arm-eabi-
-
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
-
         ccache -s || true
+        make -j$(($(nproc)/2)) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
 
-        make -j$(($(nproc)/2)) O=out ARCH=arm64 \
-          CROSS_COMPILE=aarch64-elf- \
-          CROSS_COMPILE_ARM32=arm-eabi-
+    - name: 显示 ccache 统计
+      run: ccache -s || true
 
-    - name: 显示 ccache 统计信息（编译后）
-      run: |
-        ccache -s || true
-
-    - name: 检查生成的内核镜像
+    - name: 检查内核镜像
       run: |
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb || echo "Image.gz-dtb 不存在"
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image || echo "Image 不存在"
 
-    # ======================
-    # 导出内核镜像（可选，单独 artifact）
-    # ======================
     - name: 导出内核镜像
       uses: actions/upload-artifact@v4
       with:
-        name: Mi5-LOS20-Kernel-Image
+        name: Mi5-LOS20
         path: |
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
 
-    # ======================
-    # 打包刷机包：拉取 AnyKernel3，放入内核，打包 ZIP
-    # ======================
     - name: 拉取 AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
 
-    - name: 拷贝内核到 AnyKernel3
+    - name: 拷贝内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        cp kernel-s
+        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+
+    - name: 打包刷机包
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
+        zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
+
+    - name: 上传刷机包
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS20-Kernel-eva-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
