@@ -114,8 +114,13 @@ jobs:
       run: |
         ccache -s || true
 
-    - name: 检查内核镜像
-      run: ls -lh $GITHUB_WORKSPACE/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
+    - name: 导出编译好的内核镜像
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS20
+        path: |
+          kernel_workspace/android-kernel/out/arch/arm64/boot/Image.gz-dtb
+          kernel_workspace/android-kernel/out/arch/arm64/boot/Image
 
     # 拉取 AnyKernel3
     - name: 拉取 AnyKernel3
