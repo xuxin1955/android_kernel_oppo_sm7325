@@ -42,13 +42,13 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         git clone https://github.com/tiann/KernelSU -b v0.7.6 --depth=1 kernel/ksu
 
-    # === 移动 KernelSU 到 drivers/ksu 并加入编译 ===
-    - name: 移动 KernelSU 到 drivers/ksu 并加入编译
+    # === 将 KernelSU 内核部分作为 drivers/ksu 集成 ===
+    - name: 将 KernelSU 内核部分移动到 drivers/ksu
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        mkdir -p drivers/ksu
-        cp -r kernel/ksu/* drivers/ksu/
+        mv kernel/ksu/kernel drivers/ksu
         echo 'obj-y += ksu/' >> drivers/Makefile
+        echo 'source "drivers/ksu/Kconfig"' >> drivers/Kconfig
 
     # === 手动挂钩 KernelSU 到 3.18 内核 ===
     - name: 添加 extern 声明到 fs/exec.c
