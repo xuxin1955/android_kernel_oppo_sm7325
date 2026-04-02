@@ -69,12 +69,6 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 拷贝你的 gemini_defconfig 到内核源码
-    - name: 拷贝 gemini_defconfig
-      run: |
-        mkdir -p $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi
-        cp configs/gemini_defconfig $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
-
     # 缓存 ccache 目录
     - name: 缓存 ccache
       uses: actions/cache@v3
@@ -88,6 +82,11 @@ jobs:
     - name: 跳过有问题的 DTB
       run: |
         sed -i '/apq8096-v3-pmi8996-mdm9x55-i2s-mtp\.dtb/d' $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/boot/dts/qcom/Makefile
+
+    # 检查 gemini_defconfig 是否存在
+    - name: 检查 gemini_defconfig 是否存在
+      run: |
+        ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
 
     # 检查编译器版本
     - name: 检查 aarch64-elf-gcc 版本
