@@ -1,4 +1,4 @@
-name: 小米5-LOS20-kdrag0n-GCC编译(无缓存版)
+name: 小米5-LOS20
 
 on:
   workflow_dispatch:
@@ -6,20 +6,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    
 
     steps:
     - name: 检出代码
       uses: actions/checkout@v4
 
-    - name: 安装编译依赖和 ccache
+    - name: 安装编译依赖
       run: |
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
           lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
           libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 \
           python-is-python3
-        # 创建 ccache 目录并配置
+        # 仅本次运行使用 ccache，不持久化
         mkdir -p ~/.ccache
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         export CCACHE_DIR=~/ccache
@@ -27,25 +27,24 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 拉取 kdrag0n aarch64-elf-gcc（每次都重新 clone）
+    # 每次重新 clone 工具链
     - name: 拉取 kdrag0n aarch64-elf-gcc
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/aarch64-elf-gcc.git gcc64
 
-    # 拉取 kdrag0n arm-eabi-gcc（每次都重新 clone）
     - name: 拉取 kdrag0n arm-eabi-gcc
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/arm-eabi-gcc.git gcc32
 
-    # 拉取内核源码（每次都重新 clone）
+    # 每次重新 clone 内核源码
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 临时移除有问题的 DTB 编译（避免语法错误中断）
+    # 跳过有问题的 DTB 编译
     - name: 跳过有问题的 DTB
       run: |
         sed -i '/apq8096-v3-pmi8996-mdm9x55-i2s-mtp\.dtb/d' $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/boot/dts/qcom/Makefile
@@ -66,7 +65,7 @@ jobs:
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         arm-eabi-gcc --version
 
-    # 编译内核（使用 gemini_defconfig）
+    # 编译内核
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
@@ -85,6 +84,7 @@ jobs:
     - name: 检查内核镜像
       run: ls -lh $GITHUB_WORKSPACE/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
 
+    # 拉取 AnyKernel3
     - name: 拉取 AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
