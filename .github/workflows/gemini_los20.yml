@@ -62,10 +62,7 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 跳过有问题的 DTB 编译
-    - name: 跳过有问题的 DTB
-      run: |
-        sed -i '/apq8096-v3-pmi8996-mdm9x55-i2s-mtp\.dtb/d' $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/boot/dts/qcom/Makefile
+    
 
     # 检查 gemini_defconfig 是否存在
     - name: 检查 gemini_defconfig 是否存在
