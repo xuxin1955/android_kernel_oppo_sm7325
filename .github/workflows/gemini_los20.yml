@@ -1,4 +1,4 @@
-name: 小米5-LOS20-GCC全编译
+name: 小米5-LOS20-GCC自定义工具链编译
 
 on:
   workflow_dispatch:
@@ -23,39 +23,40 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 只拉取 GCC 64/32（不需要 Clang）
-    - name: 拉取 LineageOS GCC 64位
+    # 拉取你提供的 64位 GCC
+    - name: 拉取 mvaisakh gcc-arm64
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 gcc64
+        git clone --depth=1 https://github.com/mvaisakh/gcc-arm64.git gcc64
 
-    - name: 拉取 LineageOS GCC 32位
+    # 拉取你提供的 32位 GCC
+    - name: 拉取 mvaisakh gcc-arm
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9 gcc32
+        git clone --depth=1 https://github.com/mvaisakh/gcc-arm.git gcc32
 
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 全 GCC 编译（无 Clang 参数，无 CLANG_TRIPLE 检测）
+    # 全 GCC 编译（使用你指定的工具链，前缀 aarch64-elf- 和 arm-eabi-）
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        # 只加入 GCC 工具链路径
+        # 添加自定义工具链到 PATH
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export ARCH=arm64
-        export CROSS_COMPILE=aarch64-linux-android-
-        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
         
-        # 生成 defconfig
+        # 已确认的前缀
+        export CROSS_COMPILE=aarch64-elf-
+        export CROSS_COMPILE_ARM32=arm-eabi-
+        
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
         
-        # 编译（纯 GCC，无任何 Clang/LLVM 参数）
         make -j$(nproc) O=out ARCH=arm64 \
-          CROSS_COMPILE=aarch64-linux-android- \
-          CROSS_COMPILE_ARM32=arm-linux-androideabi-
+          CROSS_COMPILE=aarch64-elf- \
+          CROSS_COMPILE_ARM32=arm-eabi-
 
     - name: 检查内核镜像
       run: ls -lh $GITHUB_WORKSPACE/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
@@ -73,10 +74,10 @@ jobs:
     - name: 打包刷机包
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r9 ../Mi5-LOS20-Kernel-GCC.zip . -x "*.git*" "README.md"
+        zip -r9 ../Mi5-LOS20-Kernel-Custom-GCC.zip . -x "*.git*" "README.md"
 
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
-        name: Mi5-LOS20-Kernel-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-GCC.zip
+        name: Mi5-LOS20-Kernel-Custom-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-Custom-GCC.zip
