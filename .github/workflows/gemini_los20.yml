@@ -1,4 +1,4 @@
-name: 编译小米5-LOS20内核（纯净版）
+name: 编译小米5-LOS20纯净内核
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
         wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-9.0.0_r47.tar.gz
         tar -C gcc32 -xzf gcc-arm.tar.gz
 
-    # 编译内核（使用 vendor/xiaomi/gemini_defconfig）
+    # 编译内核（使用 vendor/xiaomi/mi8996_defconfig）
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
@@ -45,8 +45,8 @@ jobs:
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-linux-android-
         export CROSS_COMPILE_ARM32=arm-linux-androideabi-
-        # 使用 vendor/xiaomi 下的 defconfig
-        make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
+        # 使用正确的 defconfig
+        make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
         make -j$(nproc --all) O=out ARCH=arm64
 
     # 导出内核镜像
