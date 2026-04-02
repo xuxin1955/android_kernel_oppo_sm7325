@@ -1,4 +1,4 @@
-name: 编译小米5-LOS17内核-官方源码版
+name: 小米5-LOS17
 
 on:
   workflow_dispatch:
