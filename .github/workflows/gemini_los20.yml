@@ -25,22 +25,26 @@ jobs:
     - name: 下载 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        curl -L -o eva-gcc-arm64-31122025.xz https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz --retry 5 --retry-delay 10 --fail
+        curl -L -o aarch64-linux-android-4.9.tar.gz "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android-arm64-deadpool-4.9-android13-tv.tar.gz" --retry 5 --retry-delay 10 --fail
 
     - name: 解压 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        tar -xf eva-gcc-arm64-31122025.xz
+        mkdir -p gcc64
+        tar -xzf aarch64-linux-android-4.9.tar.gz -C gcc64
+        ls -l gcc64/
 
     - name: 下载 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        curl -L -o eva-gcc-arm-31122025.xz https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz --retry 5 --retry-delay 10 --fail
+        curl -L -o arm-linux-androideabi-4.9.tar.gz "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android-msm-barbet-4.19-android12-qpr3.tar.gz" --retry 5 --retry-delay 10 --fail
 
     - name: 解压 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        tar -xf eva-gcc-arm-31122025.xz
+        mkdir -p gcc32
+        tar -xzf arm-linux-androideabi-4.9.tar.gz -C gcc32
+        ls -l gcc32/
 
     - name: 拉取内核源码
       run: |
@@ -49,8 +53,6 @@ jobs:
 
     - name: 检查 defconfig
       run: ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
-
-  
 
     - name: 缓存 ccache
       id: cache-ccache
@@ -63,14 +65,14 @@ jobs:
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/bin:$PATH
+        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc64:$GITHUB_WORKSPACE/kernel_workspace/gcc32:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
-        export CROSS_COMPILE=aarch64-elf-
-        export CROSS_COMPILE_ARM32=arm-eabi-
+        export CROSS_COMPILE=aarch64-linux-android-
+        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
         ccache -s || true
-        make -j$(($(nproc)/2)) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
+        make -j$(($(nproc)/2)) O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi-
 
     - name: 显示 ccache 统计
       run: ccache -s || true
@@ -107,4 +109,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20-Kernel-eva-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
         path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
