@@ -1,4 +1,4 @@
-name: 小米5-LOS20-Clang4579689-GCC-AOSP-云编译
+name: 小米5-LOS20-ZyC-Clang15-纯编译
 
 on:
   workflow_dispatch:
@@ -15,10 +15,10 @@ jobs:
     - name: 安装依赖
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf \
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
           lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
           libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 \
-          llvm lld llvm-dev
+          llvm lld llvm-dev libtinfo5 libncurses5
         mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
     # 1. 拉取内核源码
@@ -27,35 +27,19 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 -b lineage-20 --depth=1 android-kernel
 
-    # 2. 下载 GCC 64位编译器（AOSP archive）
-    - name: 下载 GCC 64位编译器
+    # 2. 下载 ZyC Clang 15.0.7
+    - name: 下载 ZyC Clang 15.0.7
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        mkdir gcc64
-        wget -O gcc-aarch64.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-12.1.0_r27.tar.gz
-        tar -C gcc64/ -zxvf gcc-aarch64.tar.gz
+        mkdir zyc-clang
+        wget -O clang-15.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260208-release/Clang-15.0.7-20260208.tar.gz
+        tar -xzf clang-15.tar.gz -C zyc-clang --strip-components=1
 
-    # 3. 下载 GCC 32位编译器（AOSP archive）
-    - name: 下载 GCC 32位编译器
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        mkdir gcc32
-        wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-12.1.0_r27.tar.gz
-        tar -C gcc32/ -zxvf gcc-arm.tar.gz
-
-    # 4. 下载 Clang 编译器（pie-release 分支）
-    - name: 下载 Clang 编译器
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        mkdir clang-aosp
-        wget -O clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/pie-release/clang-4579689.tar.gz
-        tar -C clang-aosp/ -zxvf clang.tar.gz
-
-    # 5. 编译内核（Clang + GCC 辅助）
+    # 3. 编译内核（纯 Clang 15）
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:/usr/lib/llvm-*/bin:$PATH
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/zyc-clang/bin:/usr/lib/llvm-*/bin:$PATH
         export ARCH=arm64
         export CC=clang
         export CLANG_TRIPLE=aarch64-linux-android-
@@ -64,7 +48,7 @@ jobs:
         export NM=llvm-nm
         export STRIP=llvm-strip
         export CROSS_COMPILE=aarch64-linux-android-
-        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        export CROSS_COMPILE_ARM32=
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
         make -j$(nproc --all) O=out ARCH=arm64 \
           CC=clang \
@@ -73,34 +57,35 @@ jobs:
           AR=llvm-ar \
           NM=llvm-nm \
           STRIP=llvm-strip \
-          LLVM_IAS=1
+          LLVM_IAS=1 \
+          CROSS_COMPILE_ARM32=
 
-    # 6. 导出内核镜像
+    # 4. 导出内核镜像
     - name: 上传内核镜像
       uses: actions/upload-artifact@v4
       with:
         name: Mi5-Kernel-Image
         path: kernel_workspace/android-kernel/out/arch/arm64/boot/Image.gz-dtb
 
-    # 7. 拉取 AnyKernel3
+    # 5. 拉取 AnyKernel3
     - name: 拉取 AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone https://github.com/xuxin1955/AnyKernel3 --depth=1
 
-    # 8. 拷贝内核到 AK3
+    # 6. 拷贝内核到 AK3
     - name: 拷贝内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         cp android-kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
 
-    # 9. 打包刷机包
+    # 7. 打包刷机包
     - name: 打包 AK3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
         zip -r9 ../Mi5-LOS20-Kernel.zip . -x "*.git*" "README.md"
 
-    # 10. 上传刷机包
+    # 8. 上传刷机包
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
