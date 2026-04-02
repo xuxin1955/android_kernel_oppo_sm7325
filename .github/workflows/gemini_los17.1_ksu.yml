@@ -51,20 +51,22 @@ jobs:
         echo 'source "drivers/ksu/Kconfig"' >> drivers/Kconfig
 
     # === 手动挂钩 KernelSU 到 3.18 内核 ===
-    - name: 添加 extern 声明到 fs/exec.c
+    # --- fs/exec.c : 先包含头文件再声明 ---
+    - name: 添加 extern 声明到 fs/exec.c（带头文件）
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        sed -i '1i /* KernelSU */\nextern int ksu_handle_execve(struct linux_binprm *bprm);' fs/exec.c
+        sed -i '1i #include <linux/binfmts.h>\n/* KernelSU */\nextern int ksu_handle_execve(struct linux_binprm *bprm);' fs/exec.c
 
     - name: 挂钩 ksu_handle_execve 到 fs/exec.c
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         sed -i '/retval = search_binary_handler(bprm);/i \    ksu_handle_execve(bprm);' fs/exec.c
 
-    - name: 添加 extern 声明到 fs/read_write.c
+    # --- fs/read_write.c : 先包含头文件再声明 ---
+    - name: 添加 extern 声明到 fs/read_write.c（带头文件）
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        sed -i '1i /* KernelSU */\nextern int ksu_handle_vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos);' fs/read_write.c
+        sed -i '1i #include <linux/uaccess.h>\n/* KernelSU */\nextern int ksu_handle_vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos);' fs/read_write.c
 
     - name: 挂钩 ksu_handle_vfs_read 到 fs/read_write.c
       run: |
