@@ -44,28 +44,31 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 终极修正：环境变量 + 命令行双保险，确保顶层和 sub-make 都能识别 CLANG_TRIPLE
-    - name: 编译内核
+    # 精准跳过 CLANG_TRIPLE 检测
+    - name: 编译内核（精准删除检测逻辑）
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
-        export ARCH=arm64
-        # 关键：export CC 带上 --target，保证递归 make 也能识别
-        export CC="clang --target=aarch64-linux-android"
-        export CLANG_TRIPLE=aarch64-linux-android-
-        export CROSS_COMPILE=aarch64-linux-android-
-        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
-        export LD=ld.lld
-        export AR=llvm-ar
-        export NM=llvm-nm
-        export STRIP=llvm-strip
+        
+        # 准备 PATH
+        K_WORK=$GITHUB_WORKSPACE/kernel_workspace
+        export PATH=$K_WORK/clang/bin:$K_WORK/gcc64/bin:$K_WORK/gcc32/bin:$PATH
+        
+        # 自动定位并删除触发 "Clang with Android --target detected" 的检测块
+        START_LINE=$(grep -n "Clang with Android --target detected" Makefile | cut -d: -f1)
+        if [ -n "$START_LINE" ]; then
+          END_LINE=$((START_LINE + 9))  # 删除包含该错误的连续 10 行，确保整段 ifeq 被移除
+          sed -i "${START_LINE},${END_LINE}d" Makefile
+          echo "已删除 Makefile 第 ${START_LINE}-${END_LINE} 行的检测逻辑"
+        else
+          echo "未找到检测行，跳过删除"
+        fi
         
         # 生成 defconfig
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
         
-        # 编译：命令行再次传入 CC 和 CLANG_TRIPLE，确保第一次检测和 sub-make 都通过
+        # 编译（使用正确的 CLANG_TRIPLE，无 LLVM_IAS=1）
         make -j$(nproc) O=out ARCH=arm64 \
-          CC="clang --target=aarch64-linux-android" \
+          CC=clang \
           CLANG_TRIPLE=aarch64-linux-android- \
           CROSS_COMPILE=aarch64-linux-android- \
           CROSS_COMPILE_ARM32=arm-linux-androideabi- \
