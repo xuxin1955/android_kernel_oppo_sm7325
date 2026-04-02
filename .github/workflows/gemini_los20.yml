@@ -6,7 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    
 
     steps:
     - name: 检出代码
@@ -19,7 +18,6 @@ jobs:
           lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
           libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 \
           python-is-python3
-        # 创建 ccache 目录并配置
         mkdir -p ~/.ccache
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         echo "compression = true" >> ~/.ccache/ccache.conf
@@ -28,43 +26,37 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 缓存 gcc64 工具链
-    - name: 缓存/恢复 gcc64
-      id: cache-gcc64
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/kernel_workspace/gcc64
-        key: gcc64-kdrag0n-aarch64-elf-gcc
+    # 删除旧工具链
+    - name: 清理旧工具链
+      run: |
+        rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc64
+        rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc32
 
-    - name: 拉取 kdrag0n aarch64-elf-gcc（若缓存未命中）
-      if: steps.cache-gcc64.outputs.cache-hit != 'true'
+    # 下载 eva-gcc-arm64
+    - name: 下载 eva-gcc-arm64
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/kdrag0n/aarch64-elf-gcc.git gcc64
+        wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz
+        xz -d eva-gcc-arm64-31122025.xz
+        tar -xf eva-gcc-arm64-31122025.tar
+        mv eva-gcc-arm64-31122025/aarch64-elf gcc64
 
-    # 缓存 gcc32 工具链
-    - name: 缓存/恢复 gcc32
-      id: cache-gcc32
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/kernel_workspace/gcc32
-        key: gcc32-kdrag0n-arm-eabi-gcc
-
-    - name: 拉取 kdrag0n arm-eabi-gcc（若缓存未命中）
-      if: steps.cache-gcc32.outputs.cache-hit != 'true'
+    # 下载 eva-gcc-arm
+    - name: 下载 eva-gcc-arm
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/kdrag0n/arm-eabi-gcc.git gcc32
+        wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
+        xz -d eva-gcc-arm-31122025.xz
+        tar -xf eva-gcc-arm-31122025.tar
+        mv eva-gcc-arm-31122025/arm-eabi gcc32
 
-    # 不缓存内核源码，每次重新 clone 保证配置和 DTS 最新
+    # 拉取内核源码
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    
-
-    # 检查 gemini_defconfig 是否存在
+    # 检查 defconfig
     - name: 检查 gemini_defconfig 是否存在
       run: |
         ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
@@ -80,13 +72,12 @@ jobs:
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         arm-eabi-gcc --version
 
-    # 缓存 ccache（全局二次加速）
+    # 缓存 ccache
     - name: 缓存 ccache
       id: cache-ccache
       uses: actions/cache@v3
       with:
         path: ~/.ccache
-        # key 包含工具链 commit + defconfig 路径，避免不匹配
         key: ccache-kernel-${{ hashFiles('kernel_workspace/gcc64/**') }}-${{ hashFiles('kernel_workspace/gcc32/**') }}-${{ hashFiles('kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig') }}
         restore-keys: |
           ccache-kernel-
@@ -103,7 +94,6 @@ jobs:
         
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
         
-        # 显示 ccache 状态（恢复后）
         ccache -s || true
         
         make -j$(($(nproc)/2)) O=out ARCH=arm64 \
@@ -114,13 +104,20 @@ jobs:
       run: |
         ccache -s || true
 
+    # 检查内核镜像文件是否存在
+    - name: 检查内核镜像文件
+      run: |
+        ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb || echo "Image.gz-dtb 不存在"
+        ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image || echo "Image 不存在"
+
+    # 导出内核镜像 Artifact
     - name: 导出编译好的内核镜像
       uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20
         path: |
-          kernel_workspace/android-kernel/out/arch/arm64/boot/Image.gz-dtb
-          kernel_workspace/android-kernel/out/arch/arm64/boot/Image
+          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
+          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
 
     # 拉取 AnyKernel3
     - name: 拉取 AnyKernel3
@@ -128,18 +125,21 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
 
+    # 拷贝内核到 AnyKernel3
     - name: 拷贝内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
 
+    # 打包刷机包
     - name: 打包刷机包
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r9 ../Mi5-LOS20-Kernel-kdrag0n-GCC.zip . -x "*.git*" "README.md"
+        zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
 
+    # 上传刷机包 Artifact
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
-        name: Mi5-LOS20-Kernel-kdrag0n-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
+        name: Mi5-LOS20-Kernel-eva-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
