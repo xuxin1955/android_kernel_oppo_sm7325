@@ -1,4 +1,4 @@
-name: 编译小米5-LOS16内核-官方源码版
+name: 编译小米5-LOS16
 
 on:
   workflow_dispatch:
