@@ -1,4 +1,4 @@
-name: 小米5-LOS20-kdrag0n-GCC编译
+name: 小米5-LOS20-kdrag0n-GCC编译(优化版)
 
 on:
   workflow_dispatch:
@@ -12,30 +12,73 @@ jobs:
     - name: 检出代码
       uses: actions/checkout@v4
 
-    - name: 安装编译依赖
+    - name: 安装编译依赖和 ccache
       run: |
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
           lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
           libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 \
           python-is-python3
+        # 配置 ccache
+        echo "max_size = 500M" > ~/.ccache/ccache.conf
+        export CCACHE_DIR=~/ccache
+        mkdir -p $CCACHE_DIR
 
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 拉取 kdrag0n 的 aarch64-elf-gcc（64位）
-    - name: 拉取 kdrag0n aarch64-elf-gcc
+    # 缓存 gcc64 工具链
+    - name: 缓存/恢复 gcc64
+      id: cache-gcc64
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/kernel_workspace/gcc64
+        key: gcc64-kdrag0n-aarch64-elf-gcc
+
+    - name: 拉取 kdrag0n aarch64-elf-gcc（若缓存未命中）
+      if: steps.cache-gcc64.outputs.cache-hit != 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/aarch64-elf-gcc.git gcc64
 
-    # 拉取 kdrag0n 的 arm-eabi-gcc（32位）
-    - name: 拉取 kdrag0n arm-eabi-gcc
+    # 缓存 gcc32 工具链
+    - name: 缓存/恢复 gcc32
+      id: cache-gcc32
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/kernel_workspace/gcc32
+        key: gcc32-kdrag0n-arm-eabi-gcc
+
+    - name: 拉取 kdrag0n arm-eabi-gcc（若缓存未命中）
+      if: steps.cache-gcc32.outputs.cache-hit != 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/kdrag0n/arm-eabi-gcc.git gcc32
 
-    # 检查编译器是否能运行（防止 GLIBC 版本问题）
+    # 缓存内核源码
+    - name: 缓存/恢复内核源码
+      id: cache-kernel
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/kernel_workspace/kernel-source
+        key: kernel-source-lineage-20
+
+    - name: 拉取内核源码（若缓存未命中）
+      if: steps.cache-kernel.outputs.cache-hit != 'true'
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
+
+    # 缓存 ccache 目录
+    - name: 缓存 ccache
+      uses: actions/cache@v3
+      with:
+        path: ~/ccache
+        key: ccache-kernel-${{ github.run_id }}
+        restore-keys: |
+          ccache-kernel-
+
+    # 检查编译器版本
     - name: 检查 aarch64-elf-gcc 版本
       run: |
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$PATH
@@ -46,23 +89,20 @@ jobs:
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         arm-eabi-gcc --version
 
-    - name: 拉取内核源码
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
-
-    # 全 GCC 编译（kdrag0n 工具链）
-    - name: 编译内核
+    - name: 编译内核（带 ccache 加速）
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        export CCACHE_DIR=~/ccache
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
         export CROSS_COMPILE_ARM32=arm-eabi-
         
-        make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
+        # 首次配置
+        make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
         
-        make -j$(nproc) O=out ARCH=arm64 \
+        # 编译（线程数可根据 runner 情况调整，这里用一半核心防止 I/O 爆掉）
+        make -j$(($(nproc)/2)) O=out ARCH=arm64 \
           CROSS_COMPILE=aarch64-elf- \
           CROSS_COMPILE_ARM32=arm-eabi-
 
