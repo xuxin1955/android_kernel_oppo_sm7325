@@ -30,32 +30,72 @@ jobs:
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc64
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc32
 
-    - name: 下载并解压 arm64 工具链
+    # ========== ARM64 工具链 ==========
+    - name: 下载 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         curl -L -o eva-gcc-arm64-31122025.xz \
           https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz \
           --retry 5 --retry-delay 10 --fail
-        file eva-gcc-arm64-31122025.xz
-        ls -lh eva-gcc-arm64-31122025.xz
+
+    - name: 解压并验证工具链目录结构
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        echo "开始解压 eva-gcc-arm64-31122025.xz ..."
         tar -xf eva-gcc-arm64-31122025.xz
-        ls -l
+
+        echo "===================================="
+        echo "🔍 gcc-arm64 目录下的内容："
+        ls -la gcc-arm64/
+
+        echo "===================================="
+        echo "🔍 查找是否存在 aarch64-elf 目录："
+        find gcc-arm64 -type d -name "aarch64-elf"
+
+        echo "===================================="
+        echo "🛠️ 开始自动处理工具链目录..."
+
         mkdir -p gcc64
-        mv gcc-arm64/aarch64-elf gcc64
+
+        if [ -d "gcc-arm64/aarch64-elf" ]; then
+          echo "✅ 检测到 aarch64-elf 目录，正在移动..."
+          mv gcc-arm64/aarch64-elf gcc64
+        elif [ -d "gcc-arm64/bin" ]; then
+          echo "✅ 检测到工具链根目录结构（无 aarch64-elf），直接移动 gcc-arm64 -> gcc64"
+          mv gcc-arm64 gcc64
+        else
+          echo "❌ 错误：gcc-arm64 目录下未发现 aarch64-elf 也没有 bin/，请检查压缩包内容！"
+          ls -la gcc-arm64/
+          find gcc-arm64 -type d
+          exit 1
+        fi
+
+        echo "===================================="
+        echo "🔧 最终工具链路径：gcc64/bin/"
         ls -l gcc64/bin
 
-    - name: 下载并解压 arm 工具链
+    # ========== ARM 工具链 ==========
+    - name: 下载 arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         curl -L -o eva-gcc-arm-31122025.xz \
           https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz \
           --retry 5 --retry-delay 10 --fail
-        file eva-gcc-arm-31122025.xz
-        ls -lh eva-gcc-arm-31122025.xz
+
+    - name: 解压并验证 arm 工具链
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
         tar -xf eva-gcc-arm-31122025.xz
-        ls -l
         mkdir -p gcc32
-        mv gcc-arm/arm-eabi gcc32
+        if [ -d "gcc-arm/arm-eabi" ]; then
+          mv gcc-arm/arm-eabi gcc32
+        elif [ -d "gcc-arm/bin" ]; then
+          mv gcc-arm gcc32
+        else
+          echo "❌ 无法识别 arm 工具链结构"
+          ls -la gcc-arm/
+          exit 1
+        fi
         ls -l gcc32/bin
 
     - name: 拉取内核源码
