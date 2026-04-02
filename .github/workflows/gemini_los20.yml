@@ -49,24 +49,21 @@ jobs:
         ls -la gcc-arm64/
 
         echo "===================================="
-        echo "🔍 查找是否存在 aarch64-elf 目录："
-        find gcc-arm64 -type d -name "aarch64-elf"
+        echo "🔍 查找是否存在 bin/aarch64-elf-gcc："
+        find gcc-arm64/bin -name "aarch64-elf-gcc"
 
         echo "===================================="
         echo "🛠️ 开始自动处理工具链目录..."
 
         mkdir -p gcc64
 
-        if [ -d "gcc-arm64/aarch64-elf" ]; then
-          echo "✅ 检测到 aarch64-elf 目录，正在移动..."
-          mv gcc-arm64/aarch64-elf gcc64
-        elif [ -d "gcc-arm64/bin" ]; then
-          echo "✅ 检测到工具链根目录结构（无 aarch64-elf），直接移动 gcc-arm64 -> gcc64"
+        # 关键：判断工具链根目录是 gcc-arm64（有 bin/aarch64-elf-gcc）
+        if [ -f "gcc-arm64/bin/aarch64-elf-gcc" ]; then
+          echo "✅ 检测到工具链根目录结构，直接移动 gcc-arm64 -> gcc64"
           mv gcc-arm64 gcc64
         else
-          echo "❌ 错误：gcc-arm64 目录下未发现 aarch64-elf 也没有 bin/，请检查压缩包内容！"
-          ls -la gcc-arm64/
-          find gcc-arm64 -type d
+          echo "❌ 错误：未找到 gcc-arm64/bin/aarch64-elf-gcc，请检查压缩包内容！"
+          ls -la gcc-arm64/bin/
           exit 1
         fi
 
@@ -87,13 +84,11 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         tar -xf eva-gcc-arm-31122025.xz
         mkdir -p gcc32
-        if [ -d "gcc-arm/arm-eabi" ]; then
-          mv gcc-arm/arm-eabi gcc32
-        elif [ -d "gcc-arm/bin" ]; then
+        if [ -f "gcc-arm/bin/arm-eabi-gcc" ]; then
           mv gcc-arm gcc32
         else
           echo "❌ 无法识别 arm 工具链结构"
-          ls -la gcc-arm/
+          ls -la gcc-arm/bin/
           exit 1
         fi
         ls -l gcc32/bin
@@ -147,25 +142,4 @@ jobs:
         name: Mi5-LOS20
         path: |
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
-          ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
-
-    - name: 拉取 AnyKernel3
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
-
-    - name: 拷贝内核
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-
-    - name: 打包刷机包
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
-
-    - name: 上传刷机包
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mi5-LOS20-Kernel-eva-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
+          ${{ github.wo
