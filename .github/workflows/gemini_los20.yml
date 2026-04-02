@@ -50,12 +50,7 @@ jobs:
     - name: 检查 defconfig
       run: ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
 
-    - name: 检查工具链版本
-      run: |
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$PATH
-        aarch64-elf-gcc --version
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
-        arm-eabi-gcc --version
+    
 
     - name: 缓存 ccache
       id: cache-ccache
