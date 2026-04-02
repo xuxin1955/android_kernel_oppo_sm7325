@@ -26,42 +26,34 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 删除旧工具链
     - name: 清理旧工具链
       run: |
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc64
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc32
 
-    # 下载 eva-gcc-arm64
     - name: 下载 eva-gcc-arm64
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz
         xz -d eva-gcc-arm64-31122025.xz
-        tar -xf eva-gcc-arm64-31122025.tar
-        mv eva-gcc-arm64-31122025/aarch64-elf gcc64
+        mv eva-gcc-arm64-31122025/gcc-arm64/aarch64-elf gcc64
 
-    # 下载 eva-gcc-arm
     - name: 下载 eva-gcc-arm
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
         xz -d eva-gcc-arm-31122025.xz
-        tar -xf eva-gcc-arm-31122025.tar
-        mv eva-gcc-arm-31122025/arm-eabi gcc32
+        mv eva-gcc-arm-31122025/gcc-arm/arm-eabi gcc32
 
-    # 拉取内核源码
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    # 检查 defconfig
     - name: 检查 gemini_defconfig 是否存在
       run: |
         ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
 
-    # 检查编译器版本
     - name: 检查 aarch64-elf-gcc 版本
       run: |
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$PATH
@@ -72,7 +64,6 @@ jobs:
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         arm-eabi-gcc --version
 
-    # 缓存 ccache
     - name: 缓存 ccache
       id: cache-ccache
       uses: actions/cache@v3
@@ -82,7 +73,6 @@ jobs:
         restore-keys: |
           ccache-kernel-
 
-    # 编译内核
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
@@ -104,13 +94,11 @@ jobs:
       run: |
         ccache -s || true
 
-    # 检查内核镜像文件是否存在
     - name: 检查内核镜像文件
       run: |
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb || echo "Image.gz-dtb 不存在"
         ls -lh ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image || echo "Image 不存在"
 
-    # 导出内核镜像 Artifact
     - name: 导出编译好的内核镜像
       uses: actions/upload-artifact@v4
       with:
@@ -119,25 +107,21 @@ jobs:
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
 
-    # 拉取 AnyKernel3
     - name: 拉取 AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
 
-    # 拷贝内核到 AnyKernel3
     - name: 拷贝内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
 
-    # 打包刷机包
     - name: 打包刷机包
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
         zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
 
-    # 上传刷机包 Artifact
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
