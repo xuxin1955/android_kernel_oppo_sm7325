@@ -44,11 +44,15 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
-    - name: 编译内核（最终修正，确保 CLANG_TRIPLE 检测通过）
+    # 终极修正：环境变量 + 命令行双保险，确保顶层和 sub-make 都能识别 CLANG_TRIPLE
+    - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export ARCH=arm64
+        # 关键：export CC 带上 --target，保证递归 make 也能识别
+        export CC="clang --target=aarch64-linux-android"
+        export CLANG_TRIPLE=aarch64-linux-android-
         export CROSS_COMPILE=aarch64-linux-android-
         export CROSS_COMPILE_ARM32=arm-linux-androideabi-
         export LD=ld.lld
@@ -59,8 +63,19 @@ jobs:
         # 生成 defconfig
         make O=out ARCH=arm64 vendor/xiaomi/mi8996_defconfig
         
-        # 关键：CC 用 --target，CLANG_TRIPLE 紧接其后，单行写避免解析问题
-        make -j$(nproc) O=out ARCH=arm64 CC="clang --target=aarch64-linux-android" CLANG_TRIPLE=aarch64-linux-android- CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump LLVM=1
+        # 编译：命令行再次传入 CC 和 CLANG_TRIPLE，确保第一次检测和 sub-make 都通过
+        make -j$(nproc) O=out ARCH=arm64 \
+          CC="clang --target=aarch64-linux-android" \
+          CLANG_TRIPLE=aarch64-linux-android- \
+          CROSS_COMPILE=aarch64-linux-android- \
+          CROSS_COMPILE_ARM32=arm-linux-androideabi- \
+          LD=ld.lld \
+          AR=llvm-ar \
+          NM=llvm-nm \
+          STRIP=llvm-strip \
+          OBJCOPY=llvm-objcopy \
+          OBJDUMP=llvm-objdump \
+          LLVM=1
 
     - name: 检查内核镜像
       run: ls -lh $GITHUB_WORKSPACE/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
