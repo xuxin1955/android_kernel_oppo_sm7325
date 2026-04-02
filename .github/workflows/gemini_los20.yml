@@ -31,18 +31,24 @@ jobs:
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc64
         rm -rf $GITHUB_WORKSPACE/kernel_workspace/gcc32
 
-    - name: 下载 eva-gcc-arm64
+    # ✅ 修正：使用 tar -xf 解压 eva-gcc-arm64（而不是 xz -d）
+    - name: 下载并解压 eva-gcc-arm64
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz
-        xz -d eva-gcc-arm64-31122025.xz
+        # 可选：检查文件类型（调试时用）
+        # file eva-gcc-arm64-31122025.xz
+        tar -xf eva-gcc-arm64-31122025.xz
         mv eva-gcc-arm64-31122025/gcc-arm64/aarch64-elf gcc64
 
-    - name: 下载 eva-gcc-arm
+    # ✅ 修正：使用 tar -xf 解压 eva-gcc-arm（而不是 xz -d）
+    - name: 下载并解压 eva-gcc-arm
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
-        xz -d eva-gcc-arm-31122025.xz
+        # 可选：检查文件类型（调试时用）
+        # file eva-gcc-arm-31122025.xz
+        tar -xf eva-gcc-arm-31122025.xz
         mv eva-gcc-arm-31122025/gcc-arm/arm-eabi gcc32
 
     - name: 拉取内核源码
@@ -107,6 +113,26 @@ jobs:
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb
           ${{ github.workspace }}/kernel_workspace/kernel-source/out/arch/arm64/boot/Image
 
+    - name: 拉取 AnyKernel3
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
+
+    - name: 拷贝内核
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+
+    - name: 打包刷机包
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
+        zip -r9 ../Mi5-LOS20-Kernel-eva-GCC.zip . -x "*.git*" "README.md"
+
+    - name: 上传刷机包
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mi5-LOS20-Kernel-eva-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-eva-GCC.zip
     - name: 拉取 AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
