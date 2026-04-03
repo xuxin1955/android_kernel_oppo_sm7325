@@ -1,4 +1,4 @@
-name: 小米5-LOS20-Android-Toolchain
+name: 小米5-LOS20-LineageOS-Toolchain
 on:
   workflow_dispatch:
 jobs:
@@ -22,17 +22,17 @@ jobs:
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
-    # 下载 Android 官方 arm64 工具链
-    - name: 下载 Android 官方 arm64 工具链
+    # 下载 LineageOS 官方 arm64 工具链 4.9
+    - name: 下载 LineageOS arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-9.3 --depth=1 gcc64
+        git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git gcc64
 
-    # 下载 Android 官方 arm32 工具链
-    - name: 下载 Android 官方 arm32 工具链
+    # 下载 LineageOS 官方 arm32 工具链 4.9
+    - name: 下载 LineageOS arm32 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-9.3 --depth=1 gcc32
+        git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9.git gcc32
 
     # 拉取内核源码
     - name: 拉取内核
