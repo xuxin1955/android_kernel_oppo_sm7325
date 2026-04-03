@@ -6,75 +6,54 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
-    - name: 安装编译依赖
+    - name: 安装依赖
       run: |
-        sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf libncurses5-dev libncursesw5-dev lib32z1-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python-is-python3 gcc-multilib g++-multilib
+        sudo apt update
+        sudo apt install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
+          libncurses5-dev libncursesw5-dev lib32z1-dev liblz4-tool libsdl1.2-dev libssl-dev \
+          libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
+          python3 python-is-python3 gcc-multilib g++-multilib
         mkdir -p ~/.ccache
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         echo "compression = true" >> ~/.ccache/ccache.conf
         export CCACHE_DIR=~/ccache
     - run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
-    - name: 下载 arm64 工具链
+    - name: 下载工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz
         tar -xf eva-gcc-arm64-31122025.xz
-    - name: 下载 arm32 工具链
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
         tar -xf eva-gcc-arm-31122025.xz
-    - id: gcc64_dir
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        shopt -s nullglob
-        dirs=(gcc-arm64-*)
-        echo "dir=${dirs[0]}" >> $GITHUB_OUTPUT
-    - id: gcc32_dir
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        shopt -s nullglob
-        dirs=(gcc-arm-*)
-        echo "dir=${dirs[0]}" >> $GITHUB_OUTPUT
-    - name: 拉取内核源码
+    - name: 拉取内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
-    - name: 检查 gemini_defconfig 是否存在
-      run: ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
-    - uses: actions/cache@v3
-      id: cache-ccache
-      with:
-        path: ~/.ccache
-        key: ccache-kernel-${{ github.run_id }}
-        restore-keys: ccache-kernel-
-    - name: 编译内核
+    - name: 编译
       run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:${{ steps.gcc64_dir.outputs.dir }}/bin:${{ steps.gcc32_dir.outputs.dir }}/bin:$PATH
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        GCC64_PATH=$(pwd)/gcc-arm64-*/bin
+        GCC32_PATH=$(pwd)/gcc-arm-*/bin
+        cd kernel-source
+        export PATH=/usr/lib/ccache:$GCC64_PATH:$GCC32_PATH:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
         export CROSS_COMPILE_ARM32=arm-eabi-
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
-        ccache -s || true
-        make -j$(($(nproc)/2)) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
-    - run: ccache -s || true
+        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20
         path: kernel_workspace/kernel-source/out/arch/arm64/boot
-    - name: 拉取 AnyKernel3
+    - name: AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
-    - run: cp kernel_workspace/kernel-source/out/arch/arm64/boot/Image.gz-dtb kernel_workspace/AnyKernel3/
-    - name: 打包刷机包
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r9 ../Mi5-LOS20-Kernel-kdrag0n-GCC.zip . -x "*.git*" "README.md"
+        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+        cd AnyKernel3
+        zip -r9 ../Mi5-LOS20-Kernel.zip . -x "*.git*" "README.md"
     - uses: actions/upload-artifact@v4
       with:
-        name: Mi5-LOS20-Kernel-kdrag0n-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
+        name: Mi5-LOS20-Kernel
+        path: kernel_workspace/Mi5-LOS20-Kernel.zip
