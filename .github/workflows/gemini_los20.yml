@@ -14,9 +14,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
-          lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
+          libncurses5-dev libncursesw5-dev lib32z1-dev liblz4-tool libsdl1.2-dev libssl-dev \
           libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 \
-          python-is-python3
+          python-is-python3 gcc-multilib g++-multilib
         mkdir -p ~/.ccache
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         echo "compression = true" >> ~/.ccache/ccache.conf
@@ -107,4 +107,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20-Kernel-kdrag0n-GCC
+        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
         path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
