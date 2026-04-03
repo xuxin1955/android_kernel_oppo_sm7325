@@ -1,4 +1,4 @@
-name: 小米5-LOS20-LineageOS-Toolchain
+name: 小米5-LOS20
 on:
   workflow_dispatch:
 jobs:
@@ -19,14 +19,14 @@ jobs:
         export CCACHE_DIR=~/ccache
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
-    - name: 下载 LineageOS arm64 工具链
+    - name: 下载 mvaisakh arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git gcc64
-    - name: 下载 LineageOS arm32 工具链
+        git clone https://github.com/mvaisakh/gcc-arm64.git gcc-arm64
+    - name: 下载 mvaisakh arm 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9.git gcc32
+        git clone https://github.com/mvaisakh/gcc-arm.git gcc-arm
     - name: 拉取内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
@@ -37,13 +37,13 @@ jobs:
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
+        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
-        export CROSS_COMPILE=aarch64-linux-android-
-        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        export CROSS_COMPILE=aarch64-elf-
+        export CROSS_COMPILE_ARM32=arm-eabi-
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
-        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20
