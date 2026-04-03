@@ -1,4 +1,4 @@
-name: 小米5-LOS20-mvaisakh-Final-Cached
+name: 小米5-LOS20
 on:
   workflow_dispatch:
 jobs:
