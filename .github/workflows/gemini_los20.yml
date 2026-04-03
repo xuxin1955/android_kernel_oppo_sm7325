@@ -26,9 +26,17 @@ jobs:
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
         tar -xf eva-gcc-arm-31122025.xz
     - id: gcc64_dir
-      run: echo "dir=$(ls -d $GITHUB_WORKSPACE/kernel_workspace/gcc-arm64-*)" >> $GITHUB_OUTPUT
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        shopt -s nullglob
+        dirs=(gcc-arm64-*)
+        echo "dir=${dirs[0]}" >> $GITHUB_OUTPUT
     - id: gcc32_dir
-      run: echo "dir=$(ls -d $GITHUB_WORKSPACE/kernel_workspace/gcc-arm-*)" >> $GITHUB_OUTPUT
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        shopt -s nullglob
+        dirs=(gcc-arm-*)
+        echo "dir=${dirs[0]}" >> $GITHUB_OUTPUT
     - name: 拉取内核源码
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
@@ -39,7 +47,7 @@ jobs:
       id: cache-ccache
       with:
         path: ~/.ccache
-        key: ccache-kernel-${{ hashFiles('kernel_workspace/**') }}-${{ hashFiles('kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig') }}
+        key: ccache-kernel-${{ github.run_id }}
         restore-keys: ccache-kernel-
     - name: 编译内核
       run: |
