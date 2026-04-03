@@ -18,24 +18,38 @@ jobs:
         echo "compression = true" >> ~/.ccache/ccache.conf
         export CCACHE_DIR=~/ccache
     - run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
-    - name: 下载工具链
+    - name: 下载 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz
         tar -xf eva-gcc-arm64-31122025.xz
+    - name: 下载 arm32 工具链
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace
         wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
         tar -xf eva-gcc-arm-31122025.xz
+    - name: 查看工具链目录结构
+      run: |
+        echo "=== gcc-arm64 目录 ==="
+        ls -R $GITHUB_WORKSPACE/kernel_workspace/gcc-arm64 | head -50
+        echo "=== gcc-arm 目录 ==="
+        ls -R $GITHUB_WORKSPACE/kernel_workspace/gcc-arm | head -50
+    - name: 设置编译器路径变量
+      id: set_toolchain
+      run: |
+        echo "GCC64_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin" >> $GITHUB_ENV
+        echo "GCC32_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/aarch32-elf/bin" >> $GITHUB_ENV
     - name: 拉取内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
-    - name: 编译
+    - name: 检查 defconfig
       run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        export GCC64_BIN=$PWD/gcc-arm64/aarch64-elf/bin
-        export GCC32_BIN=$PWD/gcc-arm/aarch32-elf/bin
-        cd kernel-source
-        export PATH=/usr/lib/ccache:$GCC64_BIN:$GCC32_BIN:$PATH
+        ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
+    - name: 编译内核
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
+        export PATH=/usr/lib/ccache:${{ env.GCC64_BIN }}:${{ env.GCC32_BIN }}:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
