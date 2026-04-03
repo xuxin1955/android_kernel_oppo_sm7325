@@ -34,11 +34,6 @@ jobs:
         ls -R $GITHUB_WORKSPACE/kernel_workspace/gcc-arm64 | head -50
         echo "=== gcc-arm 目录 ==="
         ls -R $GITHUB_WORKSPACE/kernel_workspace/gcc-arm | head -50
-    - name: 设置编译器路径变量
-      id: set_toolchain
-      run: |
-        echo "GCC64_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin" >> $GITHUB_ENV
-        echo "GCC32_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/aarch32-elf/bin" >> $GITHUB_ENV
     - name: 拉取内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
@@ -49,13 +44,13 @@ jobs:
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:${{ env.GCC64_BIN }}:${{ env.GCC32_BIN }}:$PATH
+        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
-        export CROSS_COMPILE=aarch64-elf-
-        export CROSS_COMPILE_ARM32=arm-eabi-
+        export CROSS_COMPILE=
+        export CROSS_COMPILE_ARM32=
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
-        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
+        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE= CROSS_COMPILE_ARM32=
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20
