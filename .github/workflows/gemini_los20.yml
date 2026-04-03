@@ -37,13 +37,13 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git config --global http.postBuffer 524288000
-        git clone --depth=1 https://github.com/mvaisakh/gcc-arm64.git gcc-arm64
+        git clone --depth=1 https://github.com/xuxin1955/gcc-arm64.git gcc-arm64
 
     - name: 下载 mvaisakh arm 工具链
       if: steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --depth=1 https://github.com/mvaisakh/gcc-arm.git gcc-arm
+        git clone --depth=1 https://github.com/xuxin1955/gcc-arm.git gcc-arm
 
     - name: 拉取内核
       run: |
