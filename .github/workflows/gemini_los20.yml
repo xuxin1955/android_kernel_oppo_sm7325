@@ -1,4 +1,4 @@
-name: 小米5-LOS20-mvaisakh-Final-Clean
+name: 小米5-LOS20
 on:
   workflow_dispatch:
 jobs:
@@ -6,6 +6,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
+
     - name: 安装依赖
       run: |
         sudo apt update
@@ -17,26 +18,47 @@ jobs:
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         echo "compression = true" >> ~/.ccache/ccache.conf
         export CCACHE_DIR=~/ccache
+
     - name: 创建工作目录
       run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
+
+    - name: 缓存工具链
+      id: cache-toolchain
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ github.workspace }}/kernel_workspace/gcc-arm64
+          ${{ github.workspace }}/kernel_workspace/gcc-arm
+        key: gcc-toolchain-mvaisakh-${{ runner.os }}
+
     - name: 下载 mvaisakh arm64 工具链
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/mvaisakh/gcc-arm64.git gcc-arm64
+        git config --global http.postBuffer 524288000
+        git clone --depth=1 https://github.com/mvaisakh/gcc-arm64.git gcc-arm64
+
     - name: 下载 mvaisakh arm 工具链
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/mvaisakh/gcc-arm.git gcc-arm
+        git clone --depth=1 https://github.com/mvaisakh/gcc-arm.git gcc-arm
+
     - name: 拉取内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
+
     - name: 检查 defconfig
       run: |
         ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
+
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
+        
+        # 修复缓存恢复可能丢失的执行权限
+        chmod -R +x gcc-arm64/bin gcc-arm/bin
         
         GCC64_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/bin
         GCC32_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/bin
@@ -62,10 +84,12 @@ jobs:
             CROSS_COMPILE_ARM32=arm-eabi- \
             HOSTCC=gcc \
             HOSTCXX=g++
+
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20
         path: kernel_workspace/kernel-source/out/arch/arm64/boot
+
     - name: AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
@@ -73,6 +97,7 @@ jobs:
         cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
         cd AnyKernel3
         zip -r9 ../Mi5-LOS20-Kernel.zip . -x "*.git*" "README.md"
+
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20-Kernel
