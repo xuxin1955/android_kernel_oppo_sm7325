@@ -6,7 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-
     steps:
     - name: 检出代码
       uses: actions/checkout@v4
@@ -104,23 +103,6 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
         zip -r9 ../Mi5-LOS20-Kernel-kdrag0n-GCC.zip . -x "*.git*" "README.md"
 
-    - name: 上传刷机包
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mi5-LOS20-Kernel-kdrag0n-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
-        git clone --depth=1 https://github.com/xuxin1955/AnyKernel3
-        
-    - name: 拷贝内核
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-        
-    - name: 打包刷机包
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r9 ../Mi5-LOS20-Kernel-kdrag0n-GCC.zip . -x "*.git*" "README.md"
-        
     - name: 上传刷机包
       uses: actions/upload-artifact@v4
       with:
