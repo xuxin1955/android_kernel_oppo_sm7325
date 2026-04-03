@@ -1,4 +1,4 @@
-name: 小米5-LOS20
+name: 小米5-LOS20-mvaisakh-Final-Clean
 on:
   workflow_dispatch:
 jobs:
@@ -36,14 +36,32 @@ jobs:
         ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
     - name: 编译内核
       run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
-        export CCACHE_DIR=~/ccache
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        
+        GCC64_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/bin
+        GCC32_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/bin
+        
+        export PATH=$GCC64_BIN:$GCC32_BIN:$PATH
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
         export CROSS_COMPILE_ARM32=arm-eabi-
+        export CCACHE_DIR=~/ccache
+        
+        echo "检查编译器版本:"
+        aarch64-elf-gcc --version
+        arm-eabi-gcc --version
+        
+        cd kernel-source
+        rm -rf out && mkdir -p out
+        
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
-        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi-
+        
+        make -j$(nproc) O=out \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-elf- \
+            CROSS_COMPILE_ARM32=arm-eabi- \
+            HOSTCC=gcc \
+            HOSTCXX=g++
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20
