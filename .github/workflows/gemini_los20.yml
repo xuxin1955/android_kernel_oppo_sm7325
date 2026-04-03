@@ -32,10 +32,10 @@ jobs:
     - name: 编译
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        GCC64_PATH=$(pwd)/gcc-arm64-*/bin
-        GCC32_PATH=$(pwd)/gcc-arm-*/bin
+        export GCC64_BIN=$PWD/gcc-arm64/aarch64-elf/bin
+        export GCC32_BIN=$PWD/gcc-arm/aarch32-elf/bin
         cd kernel-source
-        export PATH=/usr/lib/ccache:$GCC64_PATH:$GCC32_PATH:$PATH
+        export PATH=/usr/lib/ccache:$GCC64_BIN:$GCC32_BIN:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
