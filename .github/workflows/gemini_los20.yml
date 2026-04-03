@@ -70,8 +70,3 @@ jobs:
       with:
         name: Mi5-LOS20-Kernel-kdrag0n-GCC
         path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
-        name: Mi5-LOS20-Kernel-kdrag0n-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
-        name: Mi5-LOS20-Kernel-kdrag0n-GCC
-        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
-        path: kernel_workspace/Mi5-LOS20-Kernel-kdrag0n-GCC.zip
