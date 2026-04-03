@@ -1,4 +1,4 @@
-name: 小米5-LOS20
+name: 小米5-LOS20-Android-Toolchain
 on:
   workflow_dispatch:
 jobs:
@@ -6,6 +6,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
+
     - name: 安装依赖
       run: |
         sudo apt update
@@ -17,44 +18,52 @@ jobs:
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         echo "compression = true" >> ~/.ccache/ccache.conf
         export CCACHE_DIR=~/ccache
-    - run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
-    - name: 下载 arm64 工具链
+
+    - name: 创建工作目录
+      run: mkdir -p $GITHUB_WORKSPACE/kernel_workspace
+
+    # 下载 Android 官方 arm64 工具链
+    - name: 下载 Android 官方 arm64 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm64-31122025.xz
-        tar -xf eva-gcc-arm64-31122025.xz
-    - name: 下载 arm32 工具链
+        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-9.3 --depth=1 gcc64
+
+    # 下载 Android 官方 arm32 工具链
+    - name: 下载 Android 官方 arm32 工具链
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        wget https://github.com/mvaisakh/gcc-build/releases/download/31122025/eva-gcc-arm-31122025.xz
-        tar -xf eva-gcc-arm-31122025.xz
-    - name: 查看工具链目录结构
-      run: |
-        echo "=== gcc-arm64 目录 ==="
-        ls -R $GITHUB_WORKSPACE/kernel_workspace/gcc-arm64 | head -50
-        echo "=== gcc-arm 目录 ==="
-        ls -R $GITHUB_WORKSPACE/kernel_workspace/gcc-arm | head -50
+        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-9.3 --depth=1 gcc32
+
+    # 拉取内核源码
     - name: 拉取内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
+
+    # 检查 defconfig 是否存在
     - name: 检查 defconfig
       run: |
         ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
+
+    # 编译内核
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        export PATH=/usr/lib/ccache:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/aarch64-elf/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/arm-eabi/bin:$PATH
+        export PATH=$GITHUB_WORKSPACE/kernel_workspace/gcc64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc32/bin:$PATH
         export CCACHE_DIR=~/ccache
         export ARCH=arm64
-        export CROSS_COMPILE=
-        export CROSS_COMPILE_ARM32=
+        export CROSS_COMPILE=aarch64-linux-android-
+        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
-        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE= CROSS_COMPILE_ARM32=
+        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi-
+
+    # 上传内核镜像
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20
         path: kernel_workspace/kernel-source/out/arch/arm64/boot
+
+    # AnyKernel3 打包
     - name: AnyKernel3
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
@@ -62,6 +71,8 @@ jobs:
         cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
         cd AnyKernel3
         zip -r9 ../Mi5-LOS20-Kernel.zip . -x "*.git*" "README.md"
+
+    # 上传刷机包
     - uses: actions/upload-artifact@v4
       with:
         name: Mi5-LOS20-Kernel
