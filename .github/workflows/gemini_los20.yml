@@ -43,7 +43,7 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
         rm -rf drivers/kernelsu
-        git clone --branch dev https://ghproxy.com/https://github.com/KernelSU-Next/KernelSU-Next.git drivers/kernelsu --depth=1
+        git clone --branch dev https://github.com/KernelSU-Next/KernelSU-Next.git drivers/kernelsu --depth=1
         sed -i '/#include <linux\/binfmts.h>/a #include "../drivers/kernelsu/ksu.h"' fs/exec.c
         sed -i '/return do_execveat_common(int fd, struct filename \*filename,/,/{/ s/{/{\n\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);/' fs/exec.c
         sed -i '/#include <linux\/file.h>/a #include "../drivers/kernelsu/ksu.h"' fs/open.c
