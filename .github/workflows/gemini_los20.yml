@@ -39,16 +39,27 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
-    - name: 集成 KernelSU-Next (注入钩子版)
+    - name: 集成 KernelSU-Next (增强修复版)
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
-        git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu --depth=1
+        rm -rf drivers/kernelsu
+        git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu --depth=1 || (sleep 5 && git clone https://github.com/KernelSU-Next/KernelSU-Next drivers/kernelsu --depth=1)
+        if [ ! -f "drivers/kernelsu/Makefile" ]; then
+          echo "❌ 错误: KernelSU-Next 源码下载失败，请检查网络或仓库地址！"
+          exit 1
+        fi
         sed -i '/#include <linux\/binfmts.h>/a #include "../drivers/kernelsu/ksu.h"' fs/exec.c
         sed -i '/return do_execveat_common(int fd, struct filename \*filename,/,/{/ s/{/{\n\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);/' fs/exec.c
         sed -i '/#include <linux\/file.h>/a #include "../drivers/kernelsu/ksu.h"' fs/open.c
         sed -i '/long do_faccessat(int dfd, const char __user \*filename, int mode)/,/{/ s/{/{\n\tksu_handle_faccessat(&dfd, &filename, &mode, 0);/' fs/open.c
-        echo "obj-y += kernelsu/" >> drivers/Makefile
-        sed -i 's/->name/->uptr/g' drivers/kernelsu/*.c
+        grep -q "obj-y += kernelsu/" drivers/Makefile || echo "obj-y += kernelsu/" >> drivers/Makefile
+        if ls drivers/kernelsu/*.c >/dev/null 2>&1; then
+          sed -i 's/->name/->uptr/g' drivers/kernelsu/*.c
+          echo "✅ 成功修复 4.4 内核结构体命名"
+        else
+          echo "❌ 错误: 在 drivers/kernelsu/ 下未找到 .c 文件"
+          exit 1
+        fi
     - name: 修改配置
       run: |
         CONF_PATH=$GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
