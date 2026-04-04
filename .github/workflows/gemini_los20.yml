@@ -39,13 +39,15 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
-    - name: 集成 KernelSU-Next (增强修复版)
+    - name: 集成 KernelSU-Next (官方仓库 ZIP 下载)
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
         rm -rf drivers/kernelsu
-        git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu --depth=1 || (sleep 5 && git clone https://github.com/KernelSU-Next/KernelSU-Next drivers/kernelsu --depth=1)
+        curl -L -o kernelsu.zip https://ghproxy.com/https://github.com/KernelSU-Next/KernelSU-Next/archive/refs/heads/main.zip
+        unzip -q kernelsu.zip
+        mv KernelSU-Next-main drivers/kernelsu
         if [ ! -f "drivers/kernelsu/Makefile" ]; then
-          echo "❌ 错误: KernelSU-Next 源码下载失败，请检查网络或仓库地址！"
+          echo "❌ 错误: KernelSU-Next 源码下载失败"
           exit 1
         fi
         sed -i '/#include <linux\/binfmts.h>/a #include "../drivers/kernelsu/ksu.h"' fs/exec.c
