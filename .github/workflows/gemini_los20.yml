@@ -13,8 +13,7 @@ jobs:
         sudo apt install -y bc bison build-essential ccache curl flex g++-multilib git gnupg gperf \
           libncurses5-dev libncursesw5-dev lib32z1-dev liblz4-tool libsdl1.2-dev libssl-dev \
           libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
-          python3 python-is-python3 gcc-multilib g++-multilib \
-          libdebuginfod1 libelf-dev
+          python3 python-is-python3 gcc-multilib g++-multilib libdebuginfod1 libelf-dev
         mkdir -p ~/.ccache
         echo "max_size = 500M" > ~/.ccache/ccache.conf
         echo "compression = true" >> ~/.ccache/ccache.conf
@@ -50,6 +49,19 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --depth=1 -b lineage-20 https://github.com/xuxin1955/android_kernel_xiaomi_msm8996 kernel-source
 
+    - name: 集成 KernelSU-Next (稳健集成方案)
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/kernel-source
+        git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu --depth=1
+        sed -i '/#include <linux\/binfmts.h>/a #include "../drivers/kernelsu/ksu.h"' fs/exec.c
+        sed -i '/int do_execveat_common(int fd, struct filename \*filename,/,/{/ s/{/{\n\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);/' fs/exec.c
+        sed -i '/#include <linux\/file.h>/a #include "../drivers/kernelsu/ksu.h"' fs/open.c
+        sed -i '/long do_faccessat(int dfd, const char __user \*filename, int mode)/,/{/ s/{/{\n\tksu_handle_faccessat(&dfd, &filename, &mode, 0);/' fs/open.c
+        echo "obj-y += kernelsu/" >> drivers/Makefile
+        sed -i 's/->name/->uptr/g' drivers/kernelsu/*.c || true
+        CONF_PATH=arch/arm64/configs/vendor/xiaomi/gemini_defconfig
+        for c in CONFIG_KSU=y CONFIG_OVERLAY_FS=y CONFIG_KSU_NEXT=y; do grep -q "^${c%%=*}=" $CONF_PATH || echo "$c" >> $CONF_PATH; done
+
     - name: 检查 defconfig
       run: |
         ls -la $GITHUB_WORKSPACE/kernel_workspace/kernel-source/arch/arm64/configs/vendor/xiaomi/gemini_defconfig
@@ -57,34 +69,21 @@ jobs:
     - name: 编译内核
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        
-        # 修复缓存恢复可能丢失的执行权限
         chmod -R +x gcc-arm64/bin gcc-arm/bin
-        
         GCC64_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm64/bin
         GCC32_BIN=$GITHUB_WORKSPACE/kernel_workspace/gcc-arm/bin
-        
         export PATH=$GCC64_BIN:$GCC32_BIN:$PATH
         export ARCH=arm64
         export CROSS_COMPILE=aarch64-elf-
         export CROSS_COMPILE_ARM32=arm-eabi-
         export CCACHE_DIR=~/ccache
-        
         echo "检查编译器版本:"
         aarch64-elf-gcc --version
         arm-eabi-gcc --version
-        
         cd kernel-source
         rm -rf out && mkdir -p out
-        
         make O=out ARCH=arm64 vendor/xiaomi/gemini_defconfig
-        
-        make -j$(nproc) O=out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-elf- \
-            CROSS_COMPILE_ARM32=arm-eabi- \
-            HOSTCC=gcc \
-            HOSTCXX=g++
+        make -j$(nproc) O=out ARCH=arm64 CROSS_COMPILE=aarch64-elf- CROSS_COMPILE_ARM32=arm-eabi- HOSTCC=gcc HOSTCXX=g++
 
     - uses: actions/upload-artifact@v4
       with:
