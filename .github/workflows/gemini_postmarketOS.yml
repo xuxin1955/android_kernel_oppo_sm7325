@@ -1,60 +1,76 @@
-name: Build postmarketOS 
+name: Build postmarketOS
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 允许手动触发构建
 
 jobs:
-  build_gemini:
+  build_pmos:
     runs-on: ubuntu-latest
-    
+    env:
+      # 定义统一的工作目录
+      PMB_PATH: "/home/runner/pmbootstrap_work"
+      DEVICE: "xiaomi-gemini"
+
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git python3 python3-pip openssl qemu-user-static binfmt-support curl
+          sudo apt-get install -y git python3-pip openssl git qemu-user-static bc
+          # 安装 pmbootstrap
+          pip3 install --user pmbootstrap
+          # 将快捷路径加入环境变量
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Clone pmbootstrap
+      - name: Setup pmbootstrap
         run: |
-          git clone https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
-          cd pmbootstrap
-          chmod +x pmbootstrap.py
-          sudo ./pmbootstrap.py install
-          sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
-          cd ..
+          mkdir -p ${{ env.PMB_PATH }}
+          
+          # 1. 预先克隆 pmaports 避免 init 阶段失败 (使用 --depth 1 节省时间)
+          mkdir -p ${{ env.PMB_PATH }}/cache_git
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
+            ${{ env.PMB_PATH }}/cache_git/pmaports
 
-      - name: Create pmbootstrap config (non-interactive, 2026 recommended method)
-        run: |
-          mkdir -p ~/.config
-          cat > ~/.config/pmbootstrap.cfg <<EOF
-          [pmbootstrap]
-          is_default_channel = True
-          mirrors_postmarketos = https://mirrors.tuna.tsinghua.edu.cn/postmarketos
-          device = xiaomi-gemini
-          arch = armv7
-          ui = phosh
-          repository = stable
-          extra_space = 1024
-          jobs = 2
-          ccache_size = 5G
+          # 2. 写入配置文件 (不使用交互式 init，直接生成配置)
+          # 注意：小米 5 是 armv7 架构
+          pmbootstrap --work-path ${{ env.PMB_PATH }} init <<EOF
+          edge
+          xiaomi
+          gemini
+          n
+          user
+          phosh
+          n
+          n
+          n
+          y
           EOF
-          # 验证配置
-          pmbootstrap config show
 
-      - name: Build rootfs
+      - name: Build Rootfs
         run: |
-          pmbootstrap install --password "1234" --no-fsprogs
+          # --split: 分离内核和文件系统 (方便 fastboot 刷写)
+          # --no-fde: 不启用全盘加密 (开发板/老手机建议先不开启)
+          # --extra-space: 给 rootfs 预留一点空间 (500MB)
+          pmbootstrap --work-path ${{ env.PMB_PATH }} install \
+            --split --no-fde --extra-space 500
 
-      - name: Export Images
+      - name: Export Image
         run: |
-          mkdir -p $HOME/output
-          pmbootstrap export $HOME/output
-          ls -lh $HOME/output
+          # 导出生成的镜像到 /tmp
+          pmbootstrap --work-path ${{ env.PMB_PATH }} export
+          
+          # 创建输出目录并拷贝
+          mkdir -p output
+          cp /tmp/postmarketOS-export/* output/
+          
+          # 重命名文件以便识别 (加上日期)
+          cd output
+          for f in *; do mv "$f" "$(date +%Y%m%d)-$f"; done
 
-      - name: Upload Artifacts
+      - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
           name: pmos-xiaomi-gemini
-          path: ${{ github.workspace }}/output/*
+          path: output/*
