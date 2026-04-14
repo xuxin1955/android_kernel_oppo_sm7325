@@ -22,27 +22,17 @@ jobs:
           sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
           cd ..
 
-      - name: Zero-Interaction Config (2026 Method)
+      - name: Initialize pmbootstrap
         run: |
-          # 核心逻辑：不再尝试 init 参数，而是手动创建配置文件
-          mkdir -p ~/.config
-          
-          # 直接用 pmbootstrap config 指令逐条注入
-          # 第一次执行 config 时，pmbootstrap 会自动检测并建立基础工作区
-          pmbootstrap config work /home/runner/.local/var/pmbootstrap
-          pmbootstrap config jobs $(nproc)
-          pmbootstrap config device xiaomi-gemini
-          pmbootstrap config ui phosh
-          pmbootstrap config channel edge
-          pmbootstrap config timezone Asia/Shanghai
-          pmbootstrap config user runner
-          
-          # 2026 新增：必须明确指定镜像源，否则会因为歧义报错
-          pmbootstrap config mirror_postmarketos http://mirror.postmarketos.org/postmarketos/
-          pmbootstrap config mirror_alpine http://dl-cdn.alpinelinux.org/alpine/
-
-          # 强制同步 pmaports (2026年仓库结构已变，这步必做)
-          pmbootstrap pull
+          pmbootstrap init \
+            --arch armv7 \
+            --device xiaomi-gemini \
+            --mirror https://mirrors.tuna.tsinghua.edu.cn/postmarketos \
+            --repository stable \
+            --ui phosh \
+            --non-interactive
+          # 验证安装
+          pmbootstrap --version
 
       - name: Build rootfs
         run: |
