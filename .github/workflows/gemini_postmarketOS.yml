@@ -22,16 +22,23 @@ jobs:
           sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
           cd ..
 
-      - name: Initialize pmbootstrap
+      - name: Initialize pmbootstrap config (non-interactive)
         run: |
-          pmbootstrap init \
-            --arch armv7 \
-            --device xiaomi-gemini \
-            --mirror-pmOS https://mirrors.tuna.tsinghua.edu.cn/postmarketos \
-            --repository stable \
-            --ui phosh \
-            --non-interactive
-          pmbootstrap --version
+          mkdir -p ~/.config
+          cat > ~/.config/pmbootstrap.cfg <<EOF
+          [pmbootstrap]
+          is_default_channel = True
+          mirrors_postmarketos = https://mirrors.tuna.tsinghua.edu.cn/postmarketos
+          device = xiaomi-gemini
+          arch = armv7
+          ui = phosh
+          repository = stable
+          extra_space = 1024
+          jobs = 2
+          ccache_size = 5G
+          EOF
+          pmbootstrap config show
+
 
 
       - name: Build rootfs
