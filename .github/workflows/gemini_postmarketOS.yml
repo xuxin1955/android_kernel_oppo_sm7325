@@ -1,76 +1,84 @@
-name: Build_pmOS_Mi5_Final
+name: Build_pmOS_Mi5_2026_Final
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 手动点击运行
 
 jobs:
-  pmOS_Build:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 检出仓库
+      - name: 1. 检出代码
         uses: actions/checkout@v4
 
-      - name: 2. 安装系统依赖 (2026标准)
+      - name: 2. 初始化系统依赖 (2026 强制标准)
         run: |
+          # 禁用交互式提示，解决 needrestart 弹窗问题
+          sudo sed -i 's/#$nrconf{restart} = "i";/$nrconf{restart} = "a";/g' /etc/needrestart/needrestart.conf || true
+          
           sudo apt-get update
-          sudo apt-get install -y git python3-full python3-pip qemu-user-static bc wget openssl
-          # 必须安装 binfmt 支持，否则无法编译 arm 架构
-          sudo apt-get install -y qemu-user-static
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git python3-full python3-pip qemu-user-static binfmt-support \
+            bc wget openssl xz-utils
+          
+          # 3. 核心：手动注册 QEMU 模拟器 (解决 cross-compile 报错)
           sudo update-binfmts --enable
+          # 验证是否支持 arm
+          ls /proc/sys/fs/binfmt_misc/qemu-arm || echo "QEMU not registered, but will try to continue"
 
-      - name: 3. 准备 pmbootstrap 源码与虚拟环境
+      - name: 4. 准备 pmbootstrap 源码环境
         run: |
-          # 克隆源码
+          # 直接克隆官方源码，避免 PyPI 索引问题
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
           
-          # 创建并激活虚拟环境，安装依赖
+          # 创建虚拟环境并安装依赖 (规避 PEP 668 报错)
           python3 -m venv ~/venv
           ~/venv/bin/pip install --upgrade pip
           ~/venv/bin/pip install -r ~/pmbootstrap/requirements.txt
           
-          # 创建工作目录
+          # 设置全局快捷变量
+          echo "PMB=~/venv/bin/python3 ~/pmbootstrap/pmbootstrap.py" >> $GITHUB_ENV
           mkdir -p ~/pmb_work
 
-      - name: 4. 预克隆 pmaports (防止中途网络失败)
+      - name: 5. 预抓取 pmaports (关键：确保目录结构正确)
         run: |
           mkdir -p ~/pmb_work/cache_git
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git ~/pmb_work/cache_git/pmaports
 
-      - name: 5. 强制生成配置文件 (避开交互式init)
+      - name: 6. 自动化非交互配置
         run: |
-          # 直接写入配置文件，省去手动输入步骤
-          mkdir -p ~/.config
-          cat <<EOF > ~/.config/pmbootstrap.cfg
-          [pmbootstrap]
-          aports = ~/pmb_work/cache_git/pmaports
-          work = ~/pmb_work
-          jobs = $(nproc)
-          mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
-          device = xiaomi-gemini
-          ui = phosh
-          user = user
-          timezone = Asia/Shanghai
-          EOF
+          # 使用 config 命令直接注入参数，绝对不走 init 流程
+          $PMB --work ~/pmb_work config aports ~/pmb_work/cache_git/pmaports
+          $PMB --work ~/pmb_work config device xiaomi-gemini
+          $PMB --work ~/pmb_work config ui phosh
+          $PMB --work ~/pmb_work config user user
+          $PMB --work ~/pmb_work config channel edge
+          $PMB --work ~/pmb_work config timezone Asia/Shanghai
+          $PMB --work ~/pmb_work config extra_space 1024
 
-      - name: 6. 开始编译构建 (Rootfs)
+      - name: 7. 执行构建 (Install)
         run: |
-          # 使用虚拟环境中的 python 运行
-          export PATH="~/venv/bin:$PATH"
-          python3 ~/pmbootstrap/pmbootstrap.py install --split --no-fde --extra-space 1024
+          # --split: 必须，生成 boot.img 和 rootfs.img
+          # --no-fde: 必须，防止由于没有键盘导致的初次引导卡死
+          # --confirm-checksums: 跳过校验提示
+          $PMB --work ~/pmb_work install --split --no-fde --confirm-checksums
 
-      - name: 7. 导出镜像
+      - name: 8. 导出并整理文件
         run: |
-          export PATH="~/venv/bin:$PATH"
-          python3 ~/pmbootstrap/pmbootstrap.py export
+          $PMB --work ~/pmb_work export
           
           mkdir -p output
-          # 移动生成的镜像文件
-          sudo cp /tmp/postmarketOS-export/* output/
-          # 给予权限以便 GitHub Actions 读取
+          # 镜像文件位于 /tmp/postmarketOS-export/
+          # 必须用 sudo cp，因为编译是在 chroot 环境进行的，文件权限归属 root
+          sudo cp -L /tmp/postmarketOS-export/* output/
+          # 修改权限以便 GitHub 上传
           sudo chmod -R 777 output
+          
+          # 检查文件是否存在
+          ls -lh output/
 
-      - name: 8. 上传产物
+      - name: 9. 分发固件 (Artifacts)
         uses: actions/upload-artifact@v4
         with:
-          name: pmos-xiaomi-gemini-build
+          name: pmos-xiaomi-gemini-2026-firmware
           path: output/*
+          if-no-files-found: error
