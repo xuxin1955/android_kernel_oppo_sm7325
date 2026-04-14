@@ -27,12 +27,12 @@ jobs:
           pmbootstrap init \
             --arch armv7 \
             --device xiaomi-gemini \
-            --mirror https://mirrors.tuna.tsinghua.edu.cn/postmarketos \
+            --mirror-pmOS https://mirrors.tuna.tsinghua.edu.cn/postmarketos \
             --repository stable \
             --ui phosh \
             --non-interactive
-          # 验证安装
           pmbootstrap --version
+
 
       - name: Build rootfs
         run: |
