@@ -15,18 +15,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y git python3 python3-pip openssl qemu-user-static binfmt-support curl
-          # 克隆新版 pmbootstrap
           git clone https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           cd pmbootstrap
-          # 赋予执行权限
           chmod +x pmbootstrap.py
-          # 安装 pmbootstrap 环境
           sudo ./pmbootstrap.py install
-          # 创建全局命令链接
           sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
           cd ..
-          # 验证安装
-          pmbootstrap --version
 
       - name: Initialize pmbootstrap
         run: |
@@ -37,6 +31,8 @@ jobs:
             --repository stable \
             --ui phosh \
             --non-interactive
+          pmbootstrap --version
+
 
       - name: Build rootfs
         run: |
