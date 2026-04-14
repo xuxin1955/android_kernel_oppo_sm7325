@@ -22,18 +22,24 @@ jobs:
           sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
           cd ..
 
-      - name: Initialize and Fetch Ports
+      - name: Initialize and Configure
         run: |
-          pmbootstrap init \
-            --arch armv7 \
-            --device xiaomi-gemini \
-            --mirror-pmOS http://mirror.postmarketos.org/postmarketos/ \
-            --mirror-alpine http://dl-cdn.alpinelinux.org/alpine/ \
-            --repository edge \
-            --ui phosh \
-            --non-interactive
+          # 1. 最小化初始化（建立目录结构）
+          pmbootstrap init --non-interactive
           
-          # 确保同步最新的小米 5 补丁
+          # 2. 强制写入小米 5 的关键配置
+          # 这样直接修改配置文件，绕过 init 参数报错
+          pmbootstrap config device xiaomi-gemini
+          pmbootstrap config extra_packages none # 减少体积
+          pmbootstrap config ui phosh
+          pmbootstrap config repository edge
+          pmbootstrap config mirror_alpine http://dl-cdn.alpinelinux.org/alpine/
+          pmbootstrap config mirror_postmarketos http://mirror.postmarketos.org/postmarketos/
+          
+          # 3. 验证配置是否生效
+          pmbootstrap config device
+          
+          # 4. 同步代码（这一步会根据上面的 config 自动拉取 gemini 的配置）
           pmbootstrap pull
 
       - name: Build rootfs
