@@ -1,41 +1,50 @@
 name: Build postmarketOS
 
 on:
-  workflow_dispatch: # 允许手动触发构建
+  workflow_dispatch:
 
 jobs:
-  build_pmos:
+  build:
     runs-on: ubuntu-latest
     env:
-      # 定义统一的工作目录
-      PMB_PATH: "/home/runner/pmbootstrap_work"
+      # 工作目录定义
+      PMB_WORK: "/home/runner/pmb_work"
       DEVICE: "xiaomi-gemini"
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install System Dependencies
+      - name: Setup System Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y git python3-pip openssl git qemu-user-static bc
-          # 安装 pmbootstrap
-          pip3 install --user pmbootstrap
-          # 将快捷路径加入环境变量
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          # 2026年必备：pipx 用于安装隔离的 python 工具
+          sudo apt-get install -y pipx git qemu-user-static bc wget openssl
+          # 将 pipx 的路径加入系统变量
+          pipx ensurepath
 
-      - name: Setup pmbootstrap
+      - name: Install pmbootstrap (The 2026 Way)
         run: |
-          mkdir -p ${{ env.PMB_PATH }}
-          
-          # 1. 预先克隆 pmaports 避免 init 阶段失败 (使用 --depth 1 节省时间)
-          mkdir -p ${{ env.PMB_PATH }}/cache_git
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
-            ${{ env.PMB_PATH }}/cache_git/pmaports
+          # 使用 pipx 安装 pmbootstrap，这是目前最推荐的隔离安装方式
+          pipx install pmbootstrap
+          # 立即生效环境变量
+          export PATH="$HOME/.local/bin:$PATH"
+          pmbootstrap --version
 
-          # 2. 写入配置文件 (不使用交互式 init，直接生成配置)
-          # 注意：小米 5 是 armv7 架构
-          pmbootstrap --work-path ${{ env.PMB_PATH }} init <<EOF
+      - name: Pre-clone pmaports
+        run: |
+          # 预先拉取仓库以防止构建中途超时
+          mkdir -p ${{ env.PMB_WORK }}/cache_git
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
+            ${{ env.PMB_WORK }}/cache_git/pmaports
+
+      - name: Initialize & Configure
+        run: |
+          # 路径必须显式指定
+          PB="pipx run pmbootstrap --work-path ${{ env.PMB_WORK }}"
+          
+          # 非交互式写入配置
+          $PB init <<EOF
           edge
           xiaomi
           gemini
@@ -48,29 +57,27 @@ jobs:
           y
           EOF
 
-      - name: Build Rootfs
+      - name: Build Firmware
         run: |
-          # --split: 分离内核和文件系统 (方便 fastboot 刷写)
-          # --no-fde: 不启用全盘加密 (开发板/老手机建议先不开启)
-          # --extra-space: 给 rootfs 预留一点空间 (500MB)
-          pmbootstrap --work-path ${{ env.PMB_PATH }} install \
-            --split --no-fde --extra-space 500
+          PB="pipx run pmbootstrap --work-path ${{ env.PMB_WORK }}"
+          # 2026年编译建议：显式指定架构为 armv7 (小米5)
+          # --no-fde 是为了确保第一次启动不卡在加密界面
+          $PB install --split --no-fde --extra-space 1024
 
-      - name: Export Image
+      - name: Export and Package
         run: |
-          # 导出生成的镜像到 /tmp
-          pmbootstrap --work-path ${{ env.PMB_PATH }} export
+          PB="pipx run pmbootstrap --work-path ${{ env.PMB_WORK }}"
+          $PB export
           
-          # 创建输出目录并拷贝
           mkdir -p output
+          # 复制生成的 boot.img 和 rootfs.img
           cp /tmp/postmarketOS-export/* output/
           
-          # 重命名文件以便识别 (加上日期)
-          cd output
-          for f in *; do mv "$f" "$(date +%Y%m%d)-$f"; done
+          # 生成一个刷机说明文件
+          echo "Flash with: fastboot flash boot <boot.img> && fastboot flash userdata <rootfs.img>" > output/readme.txt
 
-      - name: Upload Result
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pmos-xiaomi-gemini
+          name: pmos-gemini-2026
           path: output/*
