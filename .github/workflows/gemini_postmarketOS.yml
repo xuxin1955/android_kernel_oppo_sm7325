@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-     - name: Setup Environment
+      - name: Setup Environment
         run: |
           sudo apt-get update
           sudo apt-get install -y git python3 python3-pip openssl qemu-user-static binfmt-support curl
