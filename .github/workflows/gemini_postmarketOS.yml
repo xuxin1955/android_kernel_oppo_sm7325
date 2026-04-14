@@ -22,18 +22,19 @@ jobs:
           sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
           cd ..
 
-      - name: Initialize pmbootstrap
+      - name: Initialize and Fetch Ports
         run: |
           pmbootstrap init \
             --arch armv7 \
             --device xiaomi-gemini \
-            --mirror http://mirror.postmarketos.org/postmarketos/ \
+            --mirror-pmOS http://mirror.postmarketos.org/postmarketos/ \
+            --mirror-alpine http://dl-cdn.alpinelinux.org/alpine/ \
             --repository edge \
             --ui phosh \
             --non-interactive
-
-            pmbootstrap pull
-
+          
+          # 确保同步最新的小米 5 补丁
+          pmbootstrap pull
 
       - name: Build rootfs
         run: |
