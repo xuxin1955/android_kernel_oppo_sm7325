@@ -1,83 +1,76 @@
-name: Build postmarketOS Mi5 (Source Mode)
+name: Build_pmOS_Mi5_Final
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  pmOS_Build:
     runs-on: ubuntu-latest
-    env:
-      # 工作目录
-      PMB_WORK: "/home/runner/pmb_work"
-      # pmbootstrap 源码目录
-      PMB_SRC: "/home/runner/pmbootstrap_src"
-
     steps:
-      - name: Checkout
+      - name: 1. 检出仓库
         uses: actions/checkout@v4
 
-      - name: Install System Essentials
+      - name: 2. 安装系统依赖 (2026标准)
         run: |
           sudo apt-get update
-          # 安装所有必要的系统工具，包括 python3-venv 和构建依赖
-          sudo apt-get install -y git python3 python3-pip qemu-user-static bc wget openssl openssh-client
+          sudo apt-get install -y git python3-full python3-pip qemu-user-static bc wget openssl
+          # 必须安装 binfmt 支持，否则无法编译 arm 架构
+          sudo apt-get install -y qemu-user-static
+          sudo update-binfmts --enable
 
-      - name: Clone pmbootstrap Source Directly
+      - name: 3. 准备 pmbootstrap 源码与虚拟环境
         run: |
-          # 直接从 GitLab 克隆源码，跳过所有 pip/pipx 索引错误
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ${{ env.PMB_SRC }}
+          # 克隆源码
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
           
-          # 安装 pmbootstrap 运行所需的最小 Python 依赖
-          # 使用 --break-system-packages 因为 GitHub Actions 是一次性容器，安全风险可忽略
-          cd ${{ env.PMB_SRC }}
-          pip3 install --user -r requirements.txt --break-system-packages || true
+          # 创建并激活虚拟环境，安装依赖
+          python3 -m venv ~/venv
+          ~/venv/bin/pip install --upgrade pip
+          ~/venv/bin/pip install -r ~/pmbootstrap/requirements.txt
           
-          # 创建一个全局快捷方式
-          echo "alias pmb='python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}'" >> ~/.bashrc
-          # 将源码路径加入 PATH 以便直接调用
-          echo "${{ env.PMB_SRC }}" >> $GITHUB_PATH
+          # 创建工作目录
+          mkdir -p ~/pmb_work
 
-      - name: Pre-clone pmaports
+      - name: 4. 预克隆 pmaports (防止中途网络失败)
         run: |
-          mkdir -p ${{ env.PMB_WORK }}/cache_git
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
-            ${{ env.PMB_WORK }}/cache_git/pmaports
+          mkdir -p ~/pmb_work/cache_git
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git ~/pmb_work/cache_git/pmaports
 
-      - name: Initialize pmbootstrap
+      - name: 5. 强制生成配置文件 (避开交互式init)
         run: |
-          # 使用 python3 路径直接运行
-          PMB="python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}"
-          
-          $PMB init <<EOF
-          edge
-          xiaomi
-          gemini
-          n
-          user
-          phosh
-          n
-          n
-          n
-          y
+          # 直接写入配置文件，省去手动输入步骤
+          mkdir -p ~/.config
+          cat <<EOF > ~/.config/pmbootstrap.cfg
+          [pmbootstrap]
+          aports = ~/pmb_work/cache_git/pmaports
+          work = ~/pmb_work
+          jobs = $(nproc)
+          mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
+          device = xiaomi-gemini
+          ui = phosh
+          user = user
+          timezone = Asia/Shanghai
           EOF
 
-      - name: Build Rootfs
+      - name: 6. 开始编译构建 (Rootfs)
         run: |
-          PMB="python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}"
-          # 2026年针对小米5的稳定参数
-          $PMB install --split --no-fde --extra-space 1024
+          # 使用虚拟环境中的 python 运行
+          export PATH="~/venv/bin:$PATH"
+          python3 ~/pmbootstrap/pmbootstrap.py install --split --no-fde --extra-space 1024
 
-      - name: Export Images
+      - name: 7. 导出镜像
         run: |
-          PMB="python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}"
-          $PMB export
+          export PATH="~/venv/bin:$PATH"
+          python3 ~/pmbootstrap/pmbootstrap.py export
           
           mkdir -p output
-          cp /tmp/postmarketOS-export/* output/
-          echo "Xiaomi Mi 5 postmarketOS Build Success" > output/status.txt
+          # 移动生成的镜像文件
+          sudo cp /tmp/postmarketOS-export/* output/
+          # 给予权限以便 GitHub Actions 读取
+          sudo chmod -R 777 output
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+      - name: 8. 上传产物
+        uses: actions/upload-artifact@v4
         with:
-          name: pmos-gemini-image
-          path: output/
+          name: pmos-xiaomi-gemini-build
+          path: output/*
