@@ -76,8 +76,8 @@ jobs:
           cp /tmp/postmarketOS-export/* output/
           echo "Xiaomi Mi 5 postmarketOS Build Success" > output/status.txt
 
-      - name: Upload Artifacts
-        uses: upload-artifact@v4
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: pmos-mi5-gemini-final
-          path: output/*
+          name: pmos-gemini-image
+          path: output/
