@@ -1,84 +1,78 @@
-name: Build_pmOS_Mi5_2026_Final
-
+name: Build_pmOS_Gemini_Pro
 on:
-  workflow_dispatch: # 手动点击运行
+  push:
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-image:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 检出代码
+      - name: 1. 检出仓库
         uses: actions/checkout@v4
-
-      - name: 2. 初始化系统依赖 (2026 强制标准)
+        
+      - name: 2. 安装系统底层工具 (2026 强制标准)
         run: |
-          # 禁用交互式提示，解决 needrestart 弹窗问题
+          # 屏蔽交互式重启提示
           sudo sed -i 's/#$nrconf{restart} = "i";/$nrconf{restart} = "a";/g' /etc/needrestart/needrestart.conf || true
-          
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            git python3-full python3-pip qemu-user-static binfmt-support \
-            bc wget openssl xz-utils
+            git python3 python3-pip qemu-user-static binfmt-support bc wget openssl
           
-          # 3. 核心：手动注册 QEMU 模拟器 (解决 cross-compile 报错)
+          # 强制启用 QEMU 模拟器映射 (构建 armv7 核心步骤)
           sudo update-binfmts --enable
-          # 验证是否支持 arm
-          ls /proc/sys/fs/binfmt_misc/qemu-arm || echo "QEMU not registered, but will try to continue"
 
-      - name: 4. 准备 pmbootstrap 源码环境
+      - name: 3. 安装 pmbootstrap (模仿模板链接方式)
         run: |
-          # 直接克隆官方源码，避免 PyPI 索引问题
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ~/pmbootstrap
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
+          mkdir -p ~/.local/bin
+          # 建立软链接，这样可以直接用 pmbootstrap 命令
+          ln -s "$PWD/pmbootstrap/pmbootstrap.py" ~/.local/bin/pmbootstrap
+          # 将路径加入环境变量
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: 4. 设置 pmaports (官方源)
+        run: |
+          # 创建工作目录
+          mkdir -p ~/.local/var/pmbootstrap/cache_git
+          # 直接克隆官方 pmaports
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
+            ~/.local/var/pmbootstrap/cache_git/pmaports
+
+      - name: 5. 预置配置文件 (核心步骤：防止交互)
+        run: |
+          mkdir -p ~/.config
+          # 生成针对小米 5 (gemini) 的配置文件
+          # 这里模仿模板，直接把配置写死，省去 pmbootstrap init
+          cat <<EOF > ~/.config/pmbootstrap.cfg
+          [pmbootstrap]
+          aports = /home/runner/.local/var/pmbootstrap/cache_git/pmaports
+          work = /home/runner/.local/var/pmbootstrap
+          jobs = $(nproc)
+          mirror_alpine = http://dl-cdn.alpinelinux.org/alpine/
+          device = xiaomi-gemini
+          ui = phosh
+          user = user
+          timezone = Asia/Shanghai
+          EOF
+
+      - name: 6. 编译并导出镜像 (Phosh 桌面版)
+        run: |
+          # --password 为开机解锁密码 1234
+          # --split 分离 boot.img 和 rootfs.img
+          # --no-fde 不启用全盘加密，防止小白刷完开不了机
+          pmbootstrap install --password 1234 --split --no-fde
           
-          # 创建虚拟环境并安装依赖 (规避 PEP 668 报错)
-          python3 -m venv ~/venv
-          ~/venv/bin/pip install --upgrade pip
-          ~/venv/bin/pip install -r ~/pmbootstrap/requirements.txt
+          # 导出镜像到临时目录
+          pmbootstrap export
           
-          # 设置全局快捷变量
-          echo "PMB=~/venv/bin/python3 ~/pmbootstrap/pmbootstrap.py" >> $GITHUB_ENV
-          mkdir -p ~/pmb_work
+          # 整理产物到 out 目录
+          mkdir out
+          cp /tmp/postmarketOS-export/boot.img out/boot-gemini.img
+          cp /tmp/postmarketOS-export/xiaomi-gemini.img out/rootfs-gemini-phosh.img
 
-      - name: 5. 预抓取 pmaports (关键：确保目录结构正确)
-        run: |
-          mkdir -p ~/pmb_work/cache_git
-          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git ~/pmb_work/cache_git/pmaports
-
-      - name: 6. 自动化非交互配置
-        run: |
-          # 使用 config 命令直接注入参数，绝对不走 init 流程
-          $PMB --work ~/pmb_work config aports ~/pmb_work/cache_git/pmaports
-          $PMB --work ~/pmb_work config device xiaomi-gemini
-          $PMB --work ~/pmb_work config ui phosh
-          $PMB --work ~/pmb_work config user user
-          $PMB --work ~/pmb_work config channel edge
-          $PMB --work ~/pmb_work config timezone Asia/Shanghai
-          $PMB --work ~/pmb_work config extra_space 1024
-
-      - name: 7. 执行构建 (Install)
-        run: |
-          # --split: 必须，生成 boot.img 和 rootfs.img
-          # --no-fde: 必须，防止由于没有键盘导致的初次引导卡死
-          # --confirm-checksums: 跳过校验提示
-          $PMB --work ~/pmb_work install --split --no-fde --confirm-checksums
-
-      - name: 8. 导出并整理文件
-        run: |
-          $PMB --work ~/pmb_work export
-          
-          mkdir -p output
-          # 镜像文件位于 /tmp/postmarketOS-export/
-          # 必须用 sudo cp，因为编译是在 chroot 环境进行的，文件权限归属 root
-          sudo cp -L /tmp/postmarketOS-export/* output/
-          # 修改权限以便 GitHub 上传
-          sudo chmod -R 777 output
-          
-          # 检查文件是否存在
-          ls -lh output/
-
-      - name: 9. 分发固件 (Artifacts)
+      - name: 7. 上传固件
         uses: actions/upload-artifact@v4
         with:
-          name: pmos-xiaomi-gemini-2026-firmware
-          path: output/*
-          if-no-files-found: error
+           name: pmos-gemini-phosh
+           path: out/*.img
+           retention-days: 7
