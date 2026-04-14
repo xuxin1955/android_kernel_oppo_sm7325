@@ -18,7 +18,7 @@ jobs:
           git clone https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           cd pmbootstrap
           chmod +x pmbootstrap.py
-          sudo ./pmbootstrap.py install
+          # 使用绝对路径建立软链接，这样在任何地方都能执行 pmbootstrap
           sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
           cd ..
 
@@ -27,11 +27,12 @@ jobs:
           pmbootstrap init \
             --arch armv7 \
             --device xiaomi-gemini \
-            --mirror https://mirrors.tuna.tsinghua.edu.cn/postmarketos \
-            --repository stable \
+            --mirror http://mirror.postmarketos.org/postmarketos/ \
+            --repository edge \
             --ui phosh \
             --non-interactive
-          pmbootstrap --version
+
+            pmbootstrap pull
 
 
       - name: Build rootfs
