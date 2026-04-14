@@ -1,0 +1,50 @@
+name: Build postmarketOS
+
+on:
+  workflow_dispatch: # 支持手动点击运行
+
+jobs:
+  build_gemini:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 防止构建超时
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        run: |
+          # 使用国内镜像加速 apt
+          sudo sed -i 's|http://.*.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip openssl qemu-user-static binfmt-support curl
+          pip3 install --user pmbootstrap
+          # 添加 pmbootstrap 到 PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          # 验证安装
+          pmbootstrap --version
+
+      - name: Initialize pmbootstrap
+        run: |
+          pmbootstrap init \
+            --arch armv7 \
+            --device xiaomi-gemini \
+            --mirror https://mirrors.tuna.tsinghua.edu.cn/postmarketos \
+            --repository stable \
+            --ui phosh \
+            --non-interactive
+
+      - name: Build rootfs
+        run: |
+          pmbootstrap install --password "1234" --no-fsprogs
+
+      - name: Export Images
+        run: |
+          mkdir -p $HOME/output
+          pmbootstrap export $HOME/output
+          ls -lh $HOME/output  # 调试输出，确认有文件
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmos-xiaomi-gemini
+          path: ${{ github.workspace }}/output/*
