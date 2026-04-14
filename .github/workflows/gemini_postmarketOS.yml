@@ -1,7 +1,7 @@
-name: Build postmarketOS
+name: Build postmarketOS 
 
 on:
-  workflow_dispatch: # 支持手动点击运行
+  workflow_dispatch:
 
 jobs:
   build_gemini:
@@ -11,18 +11,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Environment
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y git python3 python3-pip openssl qemu-user-static binfmt-support curl
+
+      - name: Clone pmbootstrap
+        run: |
           git clone https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
           cd pmbootstrap
           chmod +x pmbootstrap.py
-          # 使用绝对路径建立软链接，这样在任何地方都能执行 pmbootstrap
+          sudo ./pmbootstrap.py install
           sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
           cd ..
 
-      - name: Initialize pmbootstrap config (non-interactive)
+      - name: Create pmbootstrap config (non-interactive, 2026 recommended method)
         run: |
           mkdir -p ~/.config
           cat > ~/.config/pmbootstrap.cfg <<EOF
@@ -37,9 +40,8 @@ jobs:
           jobs = 2
           ccache_size = 5G
           EOF
+          # 验证配置
           pmbootstrap config show
-
-
 
       - name: Build rootfs
         run: |
@@ -49,7 +51,7 @@ jobs:
         run: |
           mkdir -p $HOME/output
           pmbootstrap export $HOME/output
-          ls -lh $HOME/output  # 调试输出，确认有文件
+          ls -lh $HOME/output
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
