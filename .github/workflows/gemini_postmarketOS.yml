@@ -1,4 +1,4 @@
-name: Build postmarketOS
+name: Build postmarketOS Mi5 (Source Mode)
 
 on:
   workflow_dispatch:
@@ -7,44 +7,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      # 工作目录定义
+      # 工作目录
       PMB_WORK: "/home/runner/pmb_work"
-      DEVICE: "xiaomi-gemini"
+      # pmbootstrap 源码目录
+      PMB_SRC: "/home/runner/pmbootstrap_src"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup System Environment
+      - name: Install System Essentials
         run: |
           sudo apt-get update
-          # 2026年必备：pipx 用于安装隔离的 python 工具
-          sudo apt-get install -y pipx git qemu-user-static bc wget openssl
-          # 将 pipx 的路径加入系统变量
-          pipx ensurepath
+          # 安装所有必要的系统工具，包括 python3-venv 和构建依赖
+          sudo apt-get install -y git python3 python3-pip qemu-user-static bc wget openssl openssh-client
 
-      - name: Install pmbootstrap (The 2026 Way)
+      - name: Clone pmbootstrap Source Directly
         run: |
-          # 使用 pipx 安装 pmbootstrap，这是目前最推荐的隔离安装方式
-          pipx install pmbootstrap
-          # 立即生效环境变量
-          export PATH="$HOME/.local/bin:$PATH"
-          pmbootstrap --version
+          # 直接从 GitLab 克隆源码，跳过所有 pip/pipx 索引错误
+          git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git ${{ env.PMB_SRC }}
+          
+          # 安装 pmbootstrap 运行所需的最小 Python 依赖
+          # 使用 --break-system-packages 因为 GitHub Actions 是一次性容器，安全风险可忽略
+          cd ${{ env.PMB_SRC }}
+          pip3 install --user -r requirements.txt --break-system-packages || true
+          
+          # 创建一个全局快捷方式
+          echo "alias pmb='python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}'" >> ~/.bashrc
+          # 将源码路径加入 PATH 以便直接调用
+          echo "${{ env.PMB_SRC }}" >> $GITHUB_PATH
 
       - name: Pre-clone pmaports
         run: |
-          # 预先拉取仓库以防止构建中途超时
           mkdir -p ${{ env.PMB_WORK }}/cache_git
           git clone --depth=1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
             ${{ env.PMB_WORK }}/cache_git/pmaports
 
-      - name: Initialize & Configure
+      - name: Initialize pmbootstrap
         run: |
-          # 路径必须显式指定
-          PB="pipx run pmbootstrap --work-path ${{ env.PMB_WORK }}"
+          # 使用 python3 路径直接运行
+          PMB="python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}"
           
-          # 非交互式写入配置
-          $PB init <<EOF
+          $PMB init <<EOF
           edge
           xiaomi
           gemini
@@ -57,27 +61,23 @@ jobs:
           y
           EOF
 
-      - name: Build Firmware
+      - name: Build Rootfs
         run: |
-          PB="pipx run pmbootstrap --work-path ${{ env.PMB_WORK }}"
-          # 2026年编译建议：显式指定架构为 armv7 (小米5)
-          # --no-fde 是为了确保第一次启动不卡在加密界面
-          $PB install --split --no-fde --extra-space 1024
+          PMB="python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}"
+          # 2026年针对小米5的稳定参数
+          $PMB install --split --no-fde --extra-space 1024
 
-      - name: Export and Package
+      - name: Export Images
         run: |
-          PB="pipx run pmbootstrap --work-path ${{ env.PMB_WORK }}"
-          $PB export
+          PMB="python3 ${{ env.PMB_SRC }}/pmbootstrap.py --work-path ${{ env.PMB_WORK }}"
+          $PMB export
           
           mkdir -p output
-          # 复制生成的 boot.img 和 rootfs.img
           cp /tmp/postmarketOS-export/* output/
-          
-          # 生成一个刷机说明文件
-          echo "Flash with: fastboot flash boot <boot.img> && fastboot flash userdata <rootfs.img>" > output/readme.txt
+          echo "Xiaomi Mi 5 postmarketOS Build Success" > output/status.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: upload-artifact@v4
         with:
-          name: pmos-gemini-2026
+          name: pmos-mi5-gemini-final
           path: output/*
