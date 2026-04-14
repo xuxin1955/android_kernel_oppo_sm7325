@@ -6,21 +6,21 @@ on:
 jobs:
   build_gemini:
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # 防止构建超时
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Environment
         run: |
-          # 使用国内镜像加速 apt
-          sudo sed -i 's|http://.*.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
           sudo apt-get update
-          sudo apt-get install -y python3 python3-pip openssl qemu-user-static binfmt-support curl
-          pip3 install --user pmbootstrap
-          # 添加 pmbootstrap 到 PATH
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          # 验证安装
+          sudo apt-get install -y git python3 python3-pip openssl qemu-user-static binfmt-support curl
+          git clone https://gitlab.com/postmarketOS/pmbootstrap.git
+          cd pmbootstrap
+          sudo ./pmbootstrap.py -y install
+          
+          sudo ln -sf $(pwd)/pmbootstrap.py /usr/local/bin/pmbootstrap
+          cd ..
           pmbootstrap --version
 
       - name: Initialize pmbootstrap
